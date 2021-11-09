@@ -29,7 +29,8 @@ func main() {
 	}
 
 	slackClient := slack.New(config.SLACK_API_TOKEN, slack.OptionDebug(true), slack.OptionLog(log.Default()))
-	_, job, err := simba.InitScheduler(slackClient, config)
+	scheduler, job, err := simba.InitScheduler(slackClient, config)
+	scheduler.StartAsync()
 
 	if err != nil {
 		log.Fatalf("Failed launching server: %s", err.Error())

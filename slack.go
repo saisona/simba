@@ -53,17 +53,23 @@ func fetchQuoteOfTheDay() (string, string, error) {
 	return respJson[index]["author"], respJson[index]["text"], nil
 }
 
-func firstSectionBlock() *slack.SectionBlock {
+func AddingContextAuthor(authorName string) *slack.ContextBlock {
+	blockId := fmt.Sprintf("author_context_qotd_%d", time.Now().UnixMilli())
+	textBlock := slack.NewTextBlockObject("plain_text", "From "+authorName, true, false)
+	return slack.NewContextBlock(blockId, textBlock)
+}
 
+func firstSectionBlock() (string, *slack.SectionBlock) {
 	author, qotd, err := fetchQuoteOfTheDay()
 	if err != nil {
 		qotd = "Meow"
+		author = "Simba"
 		log.Printf("Failed fetch Quote of the Day = %s", err.Error())
 	}
-	quoteOfTheDay := fmt.Sprintf("Hey folks! What is your mood today:\nQuote of the Day: *%s*\nFrom %s", qotd, author)
+	quoteOfTheDay := fmt.Sprintf("Hey folks! What is your mood today:\nQuote of the Day: *%s*", qotd)
 	firstLine := slack.NewTextBlockObject("mrkdwn", quoteOfTheDay, false, false)
 	sectionBlock := slack.NewSectionBlock(firstLine, nil, nil)
-	return sectionBlock
+	return author, sectionBlock
 }
 
 func secondSectionBlock() *slack.SectionBlock {
@@ -125,10 +131,11 @@ func actionSectionBlock() *slack.ActionBlock {
 }
 
 func fromJsonToBlocks() slack.Message {
-	slackFirstSection := firstSectionBlock()
+	authorName, slackFirstSection := firstSectionBlock()
+	contextBlock := AddingContextAuthor(authorName)
 	slackSecondSection := secondSectionBlock()
 	actions := actionSectionBlock()
-	return slack.NewBlockMessage(slackFirstSection, slackSecondSection, actions)
+	return slack.NewBlockMessage(slackFirstSection, contextBlock, slackSecondSection, actions)
 }
 
 func SendSlackBlocks(client *slack.Client, config *Config, blocks []slack.Block) (string, error) {

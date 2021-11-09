@@ -29,8 +29,7 @@ func funcHandler(client *slack.Client, config *Config) error {
 func InitScheduler(client *slack.Client, config *Config) (*gocron.Scheduler, *gocron.Job, error) {
 	scheduler := gocron.NewScheduler(time.Local)
 	if os.Getenv("APP_ENV") == "production" {
-		scheduler.Every(1).Day().At("10:00:30")
-		scheduler.Monday().Tuesday().Wednesday().Thursday().Friday().Update()
+		scheduler.Cron(config.CRON_EXPRESSION)
 	} else {
 		scheduler.Every(1).Minute()
 	}
@@ -42,6 +41,5 @@ func InitScheduler(client *slack.Client, config *Config) (*gocron.Scheduler, *go
 		return scheduler, job, err
 	}
 
-	scheduler.StartAsync()
 	return scheduler, job, nil
 }
