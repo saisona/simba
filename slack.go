@@ -2,7 +2,7 @@
  * File              : slack.go
  * Author            : Alexandre Saison <alexandre.saison@inarix.com>
  * Date              : 08.11.2021
- * Last Modified Date: 09.11.2021
+ * Last Modified Date: 14.11.2021
  * Last Modified By  : Alexandre Saison <alexandre.saison@inarix.com>
  */
 package simba
@@ -23,11 +23,10 @@ func slackTextObject(text string) slack.MsgOption {
 }
 
 func SendSlackMessage(client *slack.Client, config *Config, message string) (string, error) {
-	channelId, threadTS, _, err := client.SendMessage(config.CHANNEL_ID, slackTextObject(message))
+	_, threadTS, _, err := client.SendMessage(config.CHANNEL_ID, slackTextObject(message))
 	if err != nil {
 		return "", err
 	}
-	log.Printf("ChannelId =%s", channelId)
 	return threadTS, nil
 }
 
@@ -107,7 +106,7 @@ func actionSectionBlock() *slack.ActionBlock {
 	goodMoodButton := slack.NewButtonBlockElement(fmt.Sprintf("good_mood_%d", timeNow), "good_mood", goodMoodButtonText)
 	goodMoodButton.Style = slack.StylePrimary
 	if goodMoodButtonText.Validate() != nil {
-		log.Printf("WARNING FAILED %s", goodMoodButtonText.Validate().Error())
+		log.Printf("WARNING goodMood button display failed: %s", goodMoodButtonText.Validate().Error())
 		return nil
 	}
 
@@ -115,7 +114,7 @@ func actionSectionBlock() *slack.ActionBlock {
 	averageMoodButton := slack.NewButtonBlockElement(fmt.Sprintf("average_mood_%d", timeNow), "average_mood", averageMoodButtonText)
 	averageMoodButton.Style = slack.StyleDefault
 	if averageMoodButtonText.Validate() != nil {
-		log.Printf("WARNING FAILED %s", averageMoodButtonText.Validate().Error())
+		log.Printf("WARNING averageMood button display failed: %s", averageMoodButtonText.Validate().Error())
 		return nil
 	}
 
@@ -123,7 +122,7 @@ func actionSectionBlock() *slack.ActionBlock {
 	badMoodButton := slack.NewButtonBlockElement(fmt.Sprintf("bad_mood_%d", timeNow), "bad_mood", badMoodButtonText)
 	badMoodButton.Style = slack.StyleDanger
 	if badMoodButtonText.Validate() != nil {
-		log.Printf("WARNING FAILED %s", badMoodButtonText.Validate().Error())
+		log.Printf("WARNING baddMood button display failed: %s", badMoodButtonText.Validate().Error())
 		return nil
 	}
 
@@ -141,7 +140,6 @@ func fromJsonToBlocks() slack.Message {
 func SendSlackBlocks(client *slack.Client, config *Config, blocks []slack.Block) (string, error) {
 	if blocks == nil || len(blocks) == 0 {
 		blocksDefault := fromJsonToBlocks().Blocks.BlockSet
-		log.Printf("Blocks len %d", len(blocksDefault))
 		_, threadTS, err := client.PostMessage(config.CHANNEL_ID, slack.MsgOptionBlocks(blocksDefault...))
 		if err != nil {
 			return "", err

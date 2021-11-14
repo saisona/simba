@@ -2,13 +2,15 @@
  * File              : main.go
  * Author            : Alexandre Saison <alexandre.saison@inarix.com>
  * Date              : 08.11.2021
- * Last Modified Date: 09.11.2021
+ * Last Modified Date: 14.11.2021
  * Last Modified By  : Alexandre Saison <alexandre.saison@inarix.com>
  */
 
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -42,15 +44,55 @@ func main() {
 	}
 
 	e.GET("/healthz", func(c echo.Context) error {
-		if err != nil {
-			return c.String(http.StatusInternalServerError, err.Error())
-		}
 		return c.NoContent(http.StatusNoContent)
 	})
-	e.POST("/interactive", func(c echo.Context) error {
-		// TODO: Handle interactive for Slack application
-		return c.String(http.StatusOK, "Toto")
+
+	e.POST("/events", func(c echo.Context) error {
+		var slackVerificationToken simba.SlackVerificationStruct
+		if err := c.Bind(&slackVerificationToken); err != nil {
+			return err
+		}
+		log.Printf("slackVerificationToken=%+v", slackVerificationToken)
+		return c.String(http.StatusOK, slackVerificationToken.Challenge)
 	})
 
-	e.Start(config.APP_PORT)
+	e.POST("/interactive", func(c echo.Context) error {
+		callBackStruct := new(slack.InteractionCallback)
+		err := json.Unmarshal([]byte(c.Request().FormValue("payload")), &callBackStruct)
+		if err != nil {
+			return err
+		}
+		if len(callBackStruct.ActionCallback.AttachmentActions) > 0 {
+			blockAttachmentActions := callBackStruct.ActionCallback.AttachmentActions
+			log.Printf("There is %d block actions", len(blockAttachmentActions))
+			for idx, action := range blockAttachmentActions {
+				log.Printf("AttachementAction[%d] : %+v", idx, action)
+				log.Printf("AttachementValue = %s", action.Value)
+			}
+		} else if len(callBackStruct.ActionCallback.BlockActions) > 0 {
+			blockActions := callBackStruct.ActionCallback.BlockActions
+			user := callBackStruct.User
+			userId := user.ID
+			profile, err := slackClient.GetUserProfile(&slack.GetUserProfileParameters{UserID: userId})
+			if err != nil {
+				log.Printf("Warning some error while fetchingProfile = %s ", err.Error())
+			}
+
+			userName := profile.DisplayName
+			log.Printf("There is %d block actions", len(blockActions))
+			for _, action := range blockActions {
+				log.Printf("User (Id: %s) %s clicked on %s", userId, userName, action.Value)
+			}
+
+		} else {
+			return fmt.Errorf("Nothing has been received when clicking the button")
+		}
+		return nil
+	})
+
+	port := fmt.Sprintf(":%s", config.APP_PORT)
+	if err := e.Start(port); err != nil {
+		log.Fatalf("Error when launching server : %s", err.Error())
+		return
+	}
 }

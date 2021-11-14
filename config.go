@@ -2,7 +2,7 @@
  * File              : config.go
  * Author            : Alexandre Saison <alexandre.saison@inarix.com>
  * Date              : 08.11.2021
- * Last Modified Date: 09.11.2021
+ * Last Modified Date: 14.11.2021
  * Last Modified By  : Alexandre Saison <alexandre.saison@inarix.com>
  */
 package simba
@@ -15,8 +15,8 @@ import (
 )
 
 func InitConfig() (*Config, error) {
-	os.Clearenv()
 	if _, err := os.Open(".env"); err == nil {
+		os.Clearenv()
 		err := godotenv.Load()
 		if err != nil {
 			return nil, err
