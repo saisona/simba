@@ -22,6 +22,14 @@ func slackTextObject(text string) slack.MsgOption {
 	return slack.MsgOptionText(text, false)
 }
 
+func SendSlackTSMessage(client *slack.Client, config *Config, message string, ts string) (string, error) {
+	_, threadTS, _, err := client.SendMessage(config.CHANNEL_ID, slackTextObject(message), slack.MsgOptionTS(ts))
+	if err != nil {
+		return "", err
+	}
+	return threadTS, nil
+}
+
 func SendSlackMessage(client *slack.Client, config *Config, message string) (string, error) {
 	_, threadTS, _, err := client.SendMessage(config.CHANNEL_ID, slackTextObject(message))
 	if err != nil {

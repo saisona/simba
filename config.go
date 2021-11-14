@@ -8,6 +8,7 @@
 package simba
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -38,7 +39,26 @@ func InitConfig() (*Config, error) {
 		log.Fatalf("One of CHANNEL_ID or SLACK_API_TOKEN (%s, %s)", chanId, slackApiToken)
 	}
 
-	return &Config{CHANNEL_ID: chanId, SLACK_API_TOKEN: slackApiToken, APP_PORT: applicationPort, CRON_EXPRESSION: cronExpression}, nil
+	dbConfig, err := initDbConfig()
+	if err != nil {
+		log.Fatalf("initDbConfig failed : %s", err.Error())
+	}
+
+	return &Config{CHANNEL_ID: chanId, SLACK_API_TOKEN: slackApiToken, APP_PORT: applicationPort, CRON_EXPRESSION: cronExpression, DB: dbConfig}, nil
+}
+
+func initDbConfig() (*DbConfig, error) {
+	user := os.Getenv("DB_USER")
+	password := os.Getenv("DB_PASSWORD")
+	host := os.Getenv("DB_HOST")
+	name := os.Getenv("DB_NAME")
+
+	if user == "" || password == "" || host == "" || name == "" {
+		return nil, fmt.Errorf("One of DB_USER(%s), DB_PASSWORD(%s), DB_HOST(%s), DB_NAME(%s) is not set", user, password, host, name)
+	}
+
+	return &DbConfig{Username: user, Password: password, Host: host, Name: name}, nil
+
 }
 
 type Config struct {
@@ -46,4 +66,12 @@ type Config struct {
 	SLACK_API_TOKEN string
 	APP_PORT        string
 	CRON_EXPRESSION string
+	DB              *DbConfig
+}
+
+type DbConfig struct {
+	Username string
+	Password string
+	Host     string
+	Name     string
 }
