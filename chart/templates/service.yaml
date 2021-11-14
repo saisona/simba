@@ -1,0 +1,20 @@
+# File              : service.yaml
+# Author            : Alexandre Saison <alexandre.saison@inarix.com>
+# Date              : 14.11.2021
+# Last Modified Date: 14.11.2021
+# Last Modified By  : Alexandre Saison <alexandre.saison@inarix.com>
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "simba.fullname" . }}
+  labels:
+    {{- include "simba.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.app.port }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "simba.selectorLabels" . | nindent 4 }}
