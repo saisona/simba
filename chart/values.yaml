@@ -16,6 +16,12 @@ app:
   slackToken: ""
   cronExpression: "0 0 10 ? * MON-FRI"
 
+db:
+  host: ""
+  name: ""
+  user: ""
+  password: ""
+
 image:
   repository: asaison/simba
   pullPolicy: IfNotPresent
