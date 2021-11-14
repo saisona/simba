@@ -1,0 +1,17 @@
+# File              : config.yaml
+# Author            : Alexandre Saison <alexandre.saison@inarix.com>
+# Date              : 11.11.2021
+# Last Modified Date: 14.11.2021
+# Last Modified By  : Alexandre Saison <alexandre.saison@inarix.com>
+apiVersion: v1
+kind: ConfigMap
+metadata: 
+  name: {{ .Release.Name }}-config
+data:
+  APP_PORT: {{ .Values.app.port | quote }}
+  APP_ENV: {{ .Values.app.env }}
+  CHANNEL_ID: {{ .Values.app.channelId }}
+  SLACK_API_TOKEN: {{ .Values.app.slackToken }}
+  APP_CRON_EXPRESSION: {{ .Values.app.cronExpression }}
+  
+

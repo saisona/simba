@@ -1,7 +1,7 @@
 # File              : values.yaml
 # Author            : Alexandre Saison <alexandre.saison@inarix.com>
 # Date              : 09.11.2021
-# Last Modified Date: 09.11.2021
+# Last Modified Date: 14.11.2021
 # Last Modified By  : Alexandre Saison <alexandre.saison@inarix.com>
 # Default values for simba.
 # This is a YAML-formatted file.
@@ -9,11 +9,18 @@
 
 replicaCount: 1
 
+app:
+  port: 1337
+  env: "production"
+  channelId: ""
+  slackToken: ""
+  cronExpression: "0 0 10 ? * MON-FRI"
+
 image:
   repository: asaison/simba
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
+  tag: "v0.1.1"
 
 imagePullSecrets: []
 nameOverride: ""
@@ -61,17 +68,13 @@ ingress:
       hosts:
         - simba.inarix.com
 
-resources: {}
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  # limits:
-  #   cpu: 100m
-  #   memory: 128Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
+resources:
+   limits:
+     cpu: 100m
+     memory: 128Mi
+   requests:
+     cpu: 100m
+     memory: 128Mi
 
 autoscaling:
   enabled: false
@@ -80,7 +83,8 @@ autoscaling:
   targetCPUUtilizationPercentage: 80
   # targetMemoryUtilizationPercentage: 80
 
-nodeSelector: {}
+nodeSelector:
+  name: default
 
 tolerations: []
 
