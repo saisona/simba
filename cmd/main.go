@@ -2,7 +2,7 @@
  * File              : main.go
  * Author            : Alexandre Saison <alexandre.saison@inarix.com>
  * Date              : 08.11.2021
- * Last Modified Date: 14.11.2021
+ * Last Modified Date: 16.11.2021
  * Last Modified By  : Alexandre Saison <alexandre.saison@inarix.com>
  */
 
@@ -24,6 +24,7 @@ import (
 func main() {
 	e := echo.New()
 	e.Use(middleware.Logger())
+	e.Use(middleware.RecoverWithConfig(middleware.RecoverConfig{LogLevel: 2}))
 	//datadogClient := *datadog.NewAPIClient(&datadog.Configuration{Host: "datadoghq.eu", Debug: true})
 
 	config, err := simba.InitConfig()
@@ -71,6 +72,7 @@ func main() {
 				log.Printf("AttachementValue = %s", action.Value)
 			}
 		} else if len(callBackStruct.ActionCallback.BlockActions) > 0 {
+
 			blockActions := callBackStruct.ActionCallback.BlockActions
 			user := callBackStruct.User
 			channelId := callBackStruct.Channel.ID
@@ -80,21 +82,26 @@ func main() {
 				log.Printf("Warning some error while fetchingProfile:  %s ", err.Error())
 			}
 
-			userName := profile.DisplayName
-			teamName := profile.Title
-			members := callBackStruct.Channel.Members
-			log.Printf("Team=%s and Members of the channel are => %v", teamName, members)
+			username := profile.DisplayName
+			//slackChannelInfo, err := slackClient.GetConversationInfo(channelId, false)
+			//if err != nil {
+			//	log.Printf("Warning some error while GetConversationInfo:  %s", err.Error())
+			//}
+
+			//members := slackChannelInfo.Members
+			//channelName := slackChannelInfo.Name
+			//log.Printf("Members of the channel %s are => %v", channelName, members)
 
 			for _, action := range blockActions {
-				log.Printf("User (Id:%s) %s clicked on %s", userId, userName, action.Value)
+				log.Printf("User (Id:%s) %s clicked on %s", userId, username, action.Value)
 				if !strings.Contains(action.Value, "mood") {
 					log.Printf("Warning this has to be handled by another thing (value:%s)", action.Value)
-				} else if err := simba.HandleAddDailyMood(dbClient, channelId, userId, userName, action.Value, ""); err != nil {
+				} else if err := simba.HandleAddDailyMood(dbClient, channelId, userId, username, action.Value, ""); err != nil {
 					return err
 				} else {
-					log.Printf("Mood %s has been added for the daily for %s", action.Value, userName)
-					simba.SendSlackTSMessage(slackClient, config, fmt.Sprintf("<@%s> has responded to the daily message with %s", userId, action.Value), action.ActionTs)
-					slackClient.AddReaction("heart", slack.ItemRef{Timestamp: action.ActionTs, Channel: channelId})
+					log.Printf("Mood %s has been added for the daily for %s", action.Value, username)
+					simba.SendSlackTSMessage(slackClient, config, fmt.Sprintf("<@%s> has responded to the daily message with %s", userId, action.Value), callBackStruct.ActionTs)
+					slackClient.AddReaction("robot_face", slack.ItemRef{Timestamp: callBackStruct.ActionTs, Channel: channelId})
 					return nil
 				}
 			}
