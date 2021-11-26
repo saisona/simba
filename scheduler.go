@@ -17,11 +17,13 @@ import (
 )
 
 func funcHandler(client *slack.Client, config *Config) error {
-	_, err := SendSlackBlocks(client, config, nil)
+	threadTs, err := SendSlackBlocks(client, config, nil)
 	if err != nil {
 		log.Printf("Error => %s", err)
 		return err
 	}
+	//Sending threadTS
+	config.SLACK_MESSAGE_CHANNEL <- threadTs
 	return nil
 }
 

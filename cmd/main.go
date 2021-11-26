@@ -21,6 +21,26 @@ import (
 	"github.com/slack-go/slack"
 )
 
+func watchValueChanged(valueToChange *string, channel chan string) {
+	for {
+		// j = receipt from jobs channel
+		// more = bool if channel has been closed
+		val, more := <-channel
+		if more {
+			fmt.Println("received new value for ThreadTS=", val)
+			if valueToChange != nil {
+				fmt.Printf("OldValue=%s", *valueToChange)
+				*valueToChange = val
+				fmt.Printf("NewValue=%s", *valueToChange)
+			} else {
+			}
+		} else {
+			fmt.Println("received all jobs")
+			return
+		}
+	}
+}
+
 func main() {
 	e := echo.New()
 	e.Use(middleware.Logger())
@@ -30,12 +50,17 @@ func main() {
 	config, err := simba.InitConfig()
 	dbClient := simba.InitDbClient(config.DB.Host, config.DB.Username, config.DB.Password, config.DB.Name)
 	if err != nil {
-		log.Fatalf("Failed launching server: %s", err.Error())
+		log.Fatalf("Failed initConfig: %s", err.Error())
 	}
 
 	slackClient := slack.New(config.SLACK_API_TOKEN, slack.OptionDebug(true), slack.OptionLog(log.Default()))
 	scheduler, job, err := simba.InitScheduler(slackClient, config)
 	scheduler.StartAsync()
+
+	var threadTS string
+
+	// call anonymous goroutine
+	go watchValueChanged(&threadTS, config.SLACK_MESSAGE_CHANNEL)
 
 	if err != nil {
 		log.Fatalf("Failed launching server: %s", err.Error())
@@ -67,8 +92,7 @@ func main() {
 		} else if len(callBackStruct.ActionCallback.AttachmentActions) > 0 {
 			blockAttachmentActions := callBackStruct.ActionCallback.AttachmentActions
 			log.Printf("There is %d block actions", len(blockAttachmentActions))
-			for idx, action := range blockAttachmentActions {
-				log.Printf("AttachementAction[%d] : %+v", idx, action)
+			for _, action := range blockAttachmentActions {
 				log.Printf("AttachementValue = %s", action.Value)
 			}
 		} else if len(callBackStruct.ActionCallback.BlockActions) > 0 {
@@ -83,15 +107,6 @@ func main() {
 			}
 
 			username := profile.DisplayName
-			//slackChannelInfo, err := slackClient.GetConversationInfo(channelId, false)
-			//if err != nil {
-			//	log.Printf("Warning some error while GetConversationInfo:  %s", err.Error())
-			//}
-
-			//members := slackChannelInfo.Members
-			//channelName := slackChannelInfo.Name
-			//log.Printf("Members of the channel %s are => %v", channelName, members)
-
 			for _, action := range blockActions {
 				log.Printf("User (Id:%s) %s clicked on %s", userId, username, action.Value)
 				if !strings.Contains(action.Value, "mood") {
@@ -100,8 +115,8 @@ func main() {
 					return err
 				} else {
 					log.Printf("Mood %s has been added for the daily for %s", action.Value, username)
-					simba.SendSlackTSMessage(slackClient, config, fmt.Sprintf("<@%s> has responded to the daily message with %s", userId, action.Value), callBackStruct.ActionTs)
-					slackClient.AddReaction("robot_face", slack.ItemRef{Timestamp: callBackStruct.ActionTs, Channel: channelId})
+					simba.SendSlackTSMessage(slackClient, config, fmt.Sprintf("<@%s> has responded to the daily message with %s", userId, action.Value), threadTS)
+					slackClient.AddReaction("robot_face", slack.ItemRef{Timestamp: threadTS, Channel: channelId})
 					return nil
 				}
 			}
@@ -112,6 +127,7 @@ func main() {
 		return nil
 	})
 
+	defer close(config.SLACK_MESSAGE_CHANNEL)
 	port := fmt.Sprintf(":%s", config.APP_PORT)
 	if err := e.Start(port); err != nil {
 		log.Fatalf("Error when launching server : %s", err.Error())

@@ -8,6 +8,7 @@
 package simba
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -64,6 +65,29 @@ func HandleAddDailyMood(dbClient *gorm.DB, channelId string, userId string, user
 	}
 
 	return nil
+}
+
+func FetchLastPersonInBadMood(dbClient *gorm.DB, channelId string) (*User, error) {
+	var foundUser *User
+	var lastBadMood DailyMood
+
+	//Handle better Where session
+	var otherWay []*User
+	if err := dbClient.Where(User{Moods: []DailyMood{{Mood: "bad_mood"}}}).Find(&otherWay); err != nil {
+		log.Printf("WARNING NEW WAY IS NOT WORKING AT ALL : %s", err.Error)
+	}
+
+	txBadMood := dbClient.Where(DailyMood{Mood: "bad_mood"}).Last(&lastBadMood)
+	if txBadMood.Error != nil {
+		return nil, txBadMood.Error
+	}
+	txFoundUser := dbClient.First(foundUser, lastBadMood.UserID)
+	if errors.Is(txFoundUser.Error, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("User(%d) has not been found", lastBadMood.UserID)
+	} else if txFoundUser.Error != nil {
+		return nil, txFoundUser.Error
+	}
+	return foundUser, nil
 }
 
 type User struct {

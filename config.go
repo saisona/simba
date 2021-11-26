@@ -44,7 +44,7 @@ func InitConfig() (*Config, error) {
 		log.Fatalf("initDbConfig failed : %s", err.Error())
 	}
 
-	return &Config{CHANNEL_ID: chanId, SLACK_API_TOKEN: slackApiToken, APP_PORT: applicationPort, CRON_EXPRESSION: cronExpression, DB: dbConfig}, nil
+	return &Config{CHANNEL_ID: chanId, SLACK_API_TOKEN: slackApiToken, APP_PORT: applicationPort, CRON_EXPRESSION: cronExpression, DB: dbConfig, SLACK_MESSAGE_CHANNEL: make(chan string)}, nil
 }
 
 func initDbConfig() (*DbConfig, error) {
@@ -62,11 +62,12 @@ func initDbConfig() (*DbConfig, error) {
 }
 
 type Config struct {
-	CHANNEL_ID      string
-	SLACK_API_TOKEN string
-	APP_PORT        string
-	CRON_EXPRESSION string
-	DB              *DbConfig
+	CHANNEL_ID            string
+	SLACK_API_TOKEN       string
+	APP_PORT              string
+	CRON_EXPRESSION       string
+	SLACK_MESSAGE_CHANNEL chan string
+	DB                    *DbConfig
 }
 
 type DbConfig struct {
