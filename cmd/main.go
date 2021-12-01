@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 
 	"github.com/labstack/echo/v4"
@@ -46,9 +48,20 @@ func main() {
 	e.Use(middleware.Logger())
 	e.Use(middleware.RecoverWithConfig(middleware.RecoverConfig{LogLevel: 2}))
 	//datadogClient := *datadog.NewAPIClient(&datadog.Configuration{Host: "datadoghq.eu", Debug: true})
+	hasMigrationStr := os.Getenv("APP_MIGRATE")
+	var hasMigration bool
+
+	if hasMigrationStr != "" {
+		var err error
+		if hasMigration, err = strconv.ParseBool(hasMigrationStr); err != nil {
+			log.Printf("Warning ! APP_MIGRATE(%s) has been set but cannot be converted to bool : %s ", hasMigrationStr, err.Error())
+		}
+	} else {
+		hasMigration = false
+	}
 
 	config, err := simba.InitConfig()
-	dbClient := simba.InitDbClient(config.DB.Host, config.DB.Username, config.DB.Password, config.DB.Name)
+	dbClient := simba.InitDbClient(config.DB.Host, config.DB.Username, config.DB.Password, config.DB.Name, hasMigration)
 	if err != nil {
 		log.Fatalf("Failed initConfig: %s", err.Error())
 	}
