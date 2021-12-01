@@ -8,7 +8,6 @@
 package simba
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -17,7 +16,27 @@ import (
 	"gorm.io/gorm"
 )
 
-func InitDbClient(dbHost, dbUser, dbPassword, dbName string) *gorm.DB {
+func handleMigration(db *gorm.DB) error {
+	// create database foreign key for user & credit_cards
+	if !db.Migrator().HasConstraint(&User{}, "Moods") {
+		if err := db.Migrator().CreateConstraint(&User{}, "Moods"); err != nil {
+			log.Printf("Cannot create basic constraint for DailyMoods and Users: %s", err.Error())
+			return err
+		}
+	} else if !db.Migrator().HasConstraint(&User{}, "fk_users_daily_moods") {
+		if err := db.Migrator().CreateConstraint(&User{}, "fk_users_daily_moods"); err != nil {
+			log.Printf("Cannot create basic constraint Key for DailyMoods and Users: %s", err.Error())
+			return err
+		}
+	}
+
+	if err := db.AutoMigrate(&User{}, &DailyMood{}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func InitDbClient(dbHost, dbUser, dbPassword, dbName string, migrate bool) *gorm.DB {
 	connectionString := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=5432 sslmode=disable TimeZone=Europe/Paris", dbHost, dbUser, dbPassword, dbName)
 	gormConfig := &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
@@ -29,19 +48,11 @@ func InitDbClient(dbHost, dbUser, dbPassword, dbName string) *gorm.DB {
 		panic(err)
 	}
 
-	// create database foreign key for user & credit_cards
-	if err = db.Migrator().CreateConstraint(&User{}, "Moods"); err != nil {
-		log.Printf("Cannot create basic constraint for DailyMoods and Users: %s", err.Error())
-	} else if err = db.Migrator().CreateConstraint(&User{}, "fk_users_daily_moods"); err != nil {
-		log.Printf("Cannot create basic constraint Key for DailyMoods and Users: %s", err.Error())
-	}
-
-	if err = db.AutoMigrate(&User{}, &DailyMood{}); err != nil {
+	if err := handleMigration(db); migrate && err != nil {
 		panic(err)
 	}
 
 	return db
-
 }
 
 func HandleAddDailyMood(dbClient *gorm.DB, channelId string, userId string, userName string, mood string, context string) error {
@@ -49,11 +60,6 @@ func HandleAddDailyMood(dbClient *gorm.DB, channelId string, userId string, user
 	tx := dbClient.Where(User{SlackUserID: userId, Username: userName, SlackChannelId: channelId}).FirstOrCreate(&foundUser, User{SlackUserID: userId, Username: userName, SlackChannelId: channelId})
 	if tx.Error != nil {
 		return tx.Error
-	}
-
-	//Adding mood to the user
-	if context == "" {
-		log.Printf("For the moment we have to wait for the Context Input, and sometimes it won't be added by the user")
 	}
 
 	dailyMoodToCreate := &DailyMood{UserID: foundUser.ID, Mood: mood, Context: ""}
@@ -67,27 +73,23 @@ func HandleAddDailyMood(dbClient *gorm.DB, channelId string, userId string, user
 	return nil
 }
 
-func FetchLastPersonInBadMood(dbClient *gorm.DB, channelId string) (*User, error) {
+func FetchLastPersonInBadMood(dbClient *gorm.DB, channelId string) (*User, *DailyMood, error) {
 	var foundUser *User
-	var lastBadMood DailyMood
+	var lastBadMood *DailyMood
 
-	//Handle better Where session
-	var otherWay []*User
-	if err := dbClient.Where(User{Moods: []DailyMood{{Mood: "bad_mood"}}}).Find(&otherWay); err != nil {
-		log.Printf("WARNING NEW WAY IS NOT WORKING AT ALL : %s", err.Error)
+	//Find last user with BadMood
+	badMoodTx := dbClient.Where(User{Moods: []DailyMood{{Mood: "bad_mood"}}}).Last(&foundUser)
+	if err := badMoodTx.Error; err != nil {
+		log.Printf("WARNING NEW WAY IS NOT WORKING AT ALL : %s", err.Error())
 	}
 
-	txBadMood := dbClient.Where(DailyMood{Mood: "bad_mood"}).Last(&lastBadMood)
+	//Find related BadMood
+	txBadMood := dbClient.Where(DailyMood{Mood: "bad_mood", UserID: foundUser.ID}).Last(&lastBadMood)
 	if txBadMood.Error != nil {
-		return nil, txBadMood.Error
+		return nil, nil, txBadMood.Error
 	}
-	txFoundUser := dbClient.First(foundUser, lastBadMood.UserID)
-	if errors.Is(txFoundUser.Error, gorm.ErrRecordNotFound) {
-		return nil, fmt.Errorf("User(%d) has not been found", lastBadMood.UserID)
-	} else if txFoundUser.Error != nil {
-		return nil, txFoundUser.Error
-	}
-	return foundUser, nil
+
+	return foundUser, lastBadMood, nil
 }
 
 type User struct {

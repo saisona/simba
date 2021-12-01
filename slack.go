@@ -13,9 +13,11 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/slack-go/slack"
+	"gorm.io/gorm"
 )
 
 func slackTextObject(text string) slack.MsgOption {
@@ -79,13 +81,21 @@ func firstSectionBlock() (string, *slack.SectionBlock) {
 	return author, sectionBlock
 }
 
-func secondSectionBlock() *slack.SectionBlock {
+func secondSectionBlock(dbClient *gorm.DB, channelId string) *slack.SectionBlock {
 	//TODO: Handle fetch last person in bad mood (REPLACE XXX BY User itself)
-	secondSectionFirstBlock := slack.NewTextBlockObject("mrkdwn", "*Last co-worker in bad mood:*\nXXXXX", false, false)
+	user, mood, err := FetchLastPersonInBadMood(dbClient, channelId)
+	if err != nil {
+		log.Printf("FetchLastPersonInBadMood failed: %s", err.Error())
+		return nil
+	}
+
+	badMoodText := fmt.Sprintf("*Last co-worker in %s:*\n%s (context: %s)", strings.ReplaceAll(mood.Mood, "_", " "), user.Username, mood.Context)
+	secondSectionFirstBlock := slack.NewTextBlockObject("mrkdwn", badMoodText, false, false)
 	if secondSectionFirstBlock.Validate() != nil {
 		log.Printf("WARNING FAILED %s", secondSectionFirstBlock.Validate().Error())
 		return nil
 	}
+
 	//TODO: Handle time of when that person was in the bad mood
 	secondSectionSecondBlock := slack.NewTextBlockObject("mrkdwn", "*When:*\nYesterday", false, false)
 	if secondSectionSecondBlock.Validate() != nil {
@@ -137,17 +147,17 @@ func actionSectionBlock() *slack.ActionBlock {
 	return slack.NewActionBlock(actionBlockId, goodMoodButton, averageMoodButton, badMoodButton)
 }
 
-func fromJsonToBlocks() slack.Message {
+func fromJsonToBlocks(dbClient *gorm.DB, channelId string) slack.Message {
 	authorName, slackFirstSection := firstSectionBlock()
 	contextBlock := AddingContextAuthor(authorName)
-	slackSecondSection := secondSectionBlock()
+	slackSecondSection := secondSectionBlock(dbClient, channelId)
 	actions := actionSectionBlock()
 	return slack.NewBlockMessage(slackFirstSection, contextBlock, slackSecondSection, actions)
 }
 
-func SendSlackBlocks(client *slack.Client, config *Config, blocks []slack.Block) (string, error) {
+func SendSlackBlocks(client *slack.Client, config *Config, blocks []slack.Block, dbClient *gorm.DB) (string, error) {
 	if blocks == nil || len(blocks) == 0 {
-		blocksDefault := fromJsonToBlocks().Blocks.BlockSet
+		blocksDefault := fromJsonToBlocks(dbClient, config.CHANNEL_ID).Blocks.BlockSet
 		_, threadTS, err := client.PostMessage(config.CHANNEL_ID, slack.MsgOptionBlocks(blocksDefault...))
 		if err != nil {
 			return "", err

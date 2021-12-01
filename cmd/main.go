@@ -54,7 +54,7 @@ func main() {
 	}
 
 	slackClient := slack.New(config.SLACK_API_TOKEN, slack.OptionDebug(true), slack.OptionLog(log.Default()))
-	scheduler, job, err := simba.InitScheduler(slackClient, config)
+	scheduler, job, err := simba.InitScheduler(dbClient, slackClient, config)
 	scheduler.StartAsync()
 
 	var threadTS string

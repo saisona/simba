@@ -14,10 +14,11 @@ import (
 
 	"github.com/go-co-op/gocron"
 	"github.com/slack-go/slack"
+	"gorm.io/gorm"
 )
 
-func funcHandler(client *slack.Client, config *Config) error {
-	threadTs, err := SendSlackBlocks(client, config, nil)
+func funcHandler(dbClient *gorm.DB, client *slack.Client, config *Config) error {
+	threadTs, err := SendSlackBlocks(client, config, nil, dbClient)
 	if err != nil {
 		log.Printf("Error => %s", err)
 		return err
@@ -27,7 +28,7 @@ func funcHandler(client *slack.Client, config *Config) error {
 	return nil
 }
 
-func InitScheduler(client *slack.Client, config *Config) (*gocron.Scheduler, *gocron.Job, error) {
+func InitScheduler(dbClient *gorm.DB, client *slack.Client, config *Config) (*gocron.Scheduler, *gocron.Job, error) {
 	scheduler := gocron.NewScheduler(time.Local)
 	if os.Getenv("APP_ENV") == "production" {
 		scheduler.CronWithSeconds(config.CRON_EXPRESSION)
@@ -37,7 +38,7 @@ func InitScheduler(client *slack.Client, config *Config) (*gocron.Scheduler, *go
 		scheduler.Every(10).Minute()
 	}
 
-	job, err := scheduler.Do(funcHandler, client, config)
+	job, err := scheduler.Do(funcHandler, dbClient, client, config)
 	if err != nil {
 		return scheduler, nil, err
 	} else if job.Error() != nil {
