@@ -13,5 +13,8 @@ data:
   CHANNEL_ID: {{ .Values.app.channelId }}
   SLACK_API_TOKEN: {{ .Values.app.slackToken }}
   APP_CRON_EXPRESSION: {{ .Values.app.cronExpression }}
+  DB_USER : {{ .Values.db.user }}
+  DB_HOST : {{ .Values.db.host }}
+  DB_NAME : {{ .Values.db.name }}
   
 
