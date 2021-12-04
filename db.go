@@ -77,16 +77,16 @@ func FetchLastPersonInBadMood(dbClient *gorm.DB, channelId string) (*User, *Dail
 	var foundUser *User
 	var lastBadMood *DailyMood
 
-	//Find last user with BadMood
-	badMoodTx := dbClient.Where(User{Moods: []DailyMood{{Mood: "bad_mood"}}}).Last(&foundUser)
-	if err := badMoodTx.Error; err != nil {
-		log.Printf("WARNING NEW WAY IS NOT WORKING AT ALL : %s", err.Error())
-	}
-
 	//Find related BadMood
-	txBadMood := dbClient.Where(DailyMood{Mood: "bad_mood", UserID: foundUser.ID}).Last(&lastBadMood)
+	txBadMood := dbClient.Where("mood = ?", "bad_mood").Last(&lastBadMood)
 	if txBadMood.Error != nil {
 		return nil, nil, txBadMood.Error
+	}
+
+	//Find last user with BadMood
+	badMoodTx := dbClient.Where(foundUser, lastBadMood.UserID).First(&foundUser)
+	if err := badMoodTx.Error; err != nil {
+		return nil, nil, badMoodTx.Error
 	}
 
 	return foundUser, lastBadMood, nil
