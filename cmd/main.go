@@ -100,6 +100,7 @@ func main() {
 	e.POST("/interactive", func(c echo.Context) error {
 		callBackStruct := new(slack.InteractionCallback)
 		err := json.Unmarshal([]byte(c.Request().FormValue("payload")), &callBackStruct)
+
 		if err != nil {
 			return err
 		} else if len(callBackStruct.ActionCallback.AttachmentActions) > 0 {
@@ -109,34 +110,53 @@ func main() {
 				log.Printf("AttachementValue = %s", action.Value)
 			}
 		} else if len(callBackStruct.ActionCallback.BlockActions) > 0 {
-
 			blockActions := callBackStruct.ActionCallback.BlockActions
 			user := callBackStruct.User
 			channelId := callBackStruct.Channel.ID
 			userId := user.ID
 			profile, err := slackClient.GetUserProfile(&slack.GetUserProfileParameters{UserID: userId})
+
+			var username string
 			if err != nil {
 				log.Printf("Warning some error while fetchingProfile:  %s ", err.Error())
+				username = "John Snow"
+			} else {
+				username = profile.DisplayName
 			}
 
-			username := profile.DisplayName
 			for _, action := range blockActions {
-				log.Printf("User (Id:%s) %s clicked on %s", userId, username, action.Value)
-				if !strings.Contains(action.Value, "mood") {
-					log.Printf("Warning this has to be handled by another thing (value:%s)", action.Value)
-				} else if err := simba.HandleAddDailyMood(dbClient, channelId, userId, username, action.Value, ""); err != nil {
-					return err
-				} else {
-					log.Printf("Mood %s has been added for the daily for %s", action.Value, username)
-					simba.SendSlackTSMessage(slackClient, config, fmt.Sprintf("<@%s> has responded to the daily message with %s", userId, action.Value), threadTS)
-					slackClient.AddReaction("robot_face", slack.ItemRef{Timestamp: threadTS, Channel: channelId})
+				log.Printf("User (Id:%s) %s clicked on (ActionId:%s, ActionValue:%s)", userId, username, action.ActionID, action.Value)
+				switch {
+				case strings.Contains(action.ActionID, "mood_user"):
+					if err := simba.HandleAddDailyMood(dbClient, channelId, userId, username, action.Value, ""); err != nil {
+						return err
+					} else {
+						log.Printf("Mood %s has been added for the daily for %s", action.Value, username)
+						simba.SendSlackTSMessage(slackClient, config, fmt.Sprintf("<@%s> has responded to the daily message with %s", userId, action.Value), threadTS)
+						slackClient.AddReaction("robot_face", slack.ItemRef{Timestamp: threadTS, Channel: channelId})
+						return nil
+					}
+				case strings.Contains(action.ActionID, "send_kind_message"):
+					log.Printf("Warning this has to be handled by another thing (blockId:%s, value:%s)", action.ActionID, action.Value)
+					privateChannel, _, _, err := slackClient.OpenConversation(&slack.OpenConversationParameters{Users: []string{action.Value}})
+					if err != nil {
+						log.Printf("WARNING CANNOT OPEN PRIVATE CONV : %s\nPrivateChannel=%+v", err.Error(), privateChannel)
+						return err
+					}
+					_, err = simba.SendSlackMessageToUser(slackClient, privateChannel.ID, "Kind Message TESTS (PS: DSL LOUIS SI CA TOMBE SUR TOI :P )")
+					if err != nil {
+						return err
+					}
 					return nil
+				default:
+					log.Printf("WARNING ENTERED IN DEFAULT !!!")
+					return fmt.Errorf("Entered in default case")
 				}
 			}
-
 		} else {
 			return fmt.Errorf("Nothing has been received when clicking the button")
 		}
+
 		return nil
 	})
 
