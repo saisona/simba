@@ -9,10 +9,12 @@ package simba
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -20,18 +22,26 @@ import (
 	"gorm.io/gorm"
 )
 
-func watcherNewBadMoodUser(client *slack.Client, config *Config) error {
-	for {
-		select {
-		case newBadMoodUser := <-config.LAST_BAD_MOOD_USER:
-			log.Println("newBadMoodUser=", newBadMoodUser)
-			//TODO: handle new Bad Mood user to update message
-		}
-	}
-}
-
 func slackTextObject(text string) slack.MsgOption {
 	return slack.MsgOptionText(text, false)
+}
+
+func SendImage(client *slack.Client, config *Config, filePath, title, comment string) error {
+	if fileInfo, err := os.Stat(filePath); errors.Is(err, os.ErrNotExist) {
+		// path/to/whatever does not exist
+		return fmt.Errorf("File %s does not exists", filePath)
+	} else {
+		sizeMo := fileInfo.Size() / 1e5
+		sizeRest := fileInfo.Size() % 1e5
+		log.Printf("Uploading %d,%dMo file", sizeMo, sizeRest)
+	}
+
+	file, err := client.UploadFile(slack.FileUploadParameters{File: filePath, Title: title, InitialComment: comment, Content: "", Channels: []string{config.CHANNEL_ID}})
+	if err != nil {
+		return err
+	}
+	log.Printf("mimeType=%s\n", file.Mimetype)
+	return nil
 }
 
 func SendSlackTSMessage(client *slack.Client, config *Config, message string, ts string) (string, error) {
@@ -211,5 +221,24 @@ func SendSlackBlocks(client *slack.Client, config *Config, blocks []slack.Block,
 			return "", err
 		}
 		return threadTS, nil
+	}
+}
+
+func UpdateMessage(client *slack.Client, config *Config, threadTS string, message string, blocks []slack.Block) (string, error) {
+	if message != "" {
+		msgOptions := slack.MsgOptionText(message, false)
+		_, newThreadTS, _, err := client.UpdateMessage(config.CHANNEL_ID, threadTS, msgOptions)
+		if err != nil {
+			return threadTS, err
+		}
+		return newThreadTS, nil
+	} else {
+		msgOptions := slack.MsgOptionBlocks(blocks...)
+
+		_, newThreadTS, _, err := client.UpdateMessage(config.CHANNEL_ID, threadTS, msgOptions)
+		if err != nil {
+			return threadTS, err
+		}
+		return newThreadTS, nil
 	}
 }

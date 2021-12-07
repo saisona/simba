@@ -47,3 +47,13 @@ func InitScheduler(dbClient *gorm.DB, client *slack.Client, config *Config) (*go
 
 	return scheduler, job, nil
 }
+
+func watcherNewBadMoodUser(client *slack.Client, config *Config) error {
+	for {
+		select {
+		case newBadMoodUser := <-config.LAST_BAD_MOOD_USER:
+			log.Println("newBadMoodUser=", newBadMoodUser)
+			//TODO: handle new Bad Mood user to update message
+		}
+	}
+}
