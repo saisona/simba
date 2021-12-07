@@ -31,9 +31,9 @@ func watchValueChanged(valueToChange *string, channel chan string) {
 		if more {
 			fmt.Println("received new value for ThreadTS=", val)
 			if valueToChange != nil {
-				fmt.Printf("OldValue=%s", *valueToChange)
+				fmt.Printf("OldValue=%s\n", *valueToChange)
 				*valueToChange = val
-				fmt.Printf("NewValue=%s", *valueToChange)
+				fmt.Printf("NewValue=%s\n", *valueToChange)
 			} else {
 			}
 		} else {
@@ -143,6 +143,19 @@ func main() {
 						log.Printf("WARNING CANNOT OPEN PRIVATE CONV : %s\nPrivateChannel=%+v", err.Error(), privateChannel)
 						return err
 					}
+
+					title, urlToDownload, err := simba.FetchRelatedGif("care")
+					if err != nil {
+						return err
+					}
+
+					filePath := fmt.Sprintf("/tmp/%s", title)
+					if err := simba.DownloadFile(filePath, urlToDownload, false); err != nil {
+						return err
+					} else if err = simba.SendImage(slackClient, config, filePath, title, ""); err != nil {
+						return err
+					}
+
 					_, err = simba.SendSlackMessageToUser(slackClient, privateChannel.ID, "Kind Message TESTS (PS: DSL LOUIS SI CA TOMBE SUR TOI :P )")
 					if err != nil {
 						return err
