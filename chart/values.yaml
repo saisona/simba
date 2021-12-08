@@ -15,6 +15,7 @@ app:
   channelId: ""
   slackToken: ""
   cronExpression: "0 0 10 ? * MON-FRI"
+  giphyToken: ""
 
 db:
   host: ""
