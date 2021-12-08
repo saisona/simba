@@ -26,7 +26,7 @@ func slackTextObject(text string) slack.MsgOption {
 	return slack.MsgOptionText(text, false)
 }
 
-func SendImage(client *slack.Client, config *Config, filePath, title, comment string) error {
+func SendImage(client *slack.Client, channelId, filePath, title, comment string) error {
 	if fileInfo, err := os.Stat(filePath); errors.Is(err, os.ErrNotExist) {
 		// path/to/whatever does not exist
 		return fmt.Errorf("File %s does not exists", filePath)
@@ -36,7 +36,7 @@ func SendImage(client *slack.Client, config *Config, filePath, title, comment st
 		log.Printf("Uploading %d,%dMo file", sizeMo, sizeRest)
 	}
 
-	file, err := client.UploadFile(slack.FileUploadParameters{File: filePath, Title: title, InitialComment: comment, Content: "", Channels: []string{config.CHANNEL_ID}})
+	file, err := client.UploadFile(slack.FileUploadParameters{File: filePath, Title: title, InitialComment: comment, Content: "", Channels: []string{channelId}})
 	if err != nil {
 		return err
 	}

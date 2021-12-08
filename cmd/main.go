@@ -144,7 +144,8 @@ func main() {
 						return err
 					}
 
-					title, urlToDownload, err := simba.FetchRelatedGif("care")
+					words := simba.GenerateBuzzWords()
+					title, urlToDownload, err := simba.FetchRelatedGif(words[simba.GenerateRandomIndexBuzzWord(words)])
 					if err != nil {
 						return err
 					}
@@ -152,15 +153,11 @@ func main() {
 					filePath := fmt.Sprintf("/tmp/%s", title)
 					if err := simba.DownloadFile(filePath, urlToDownload, false); err != nil {
 						return err
-					} else if err = simba.SendImage(slackClient, config, filePath, title, ""); err != nil {
-						return err
-					}
-
-					_, err = simba.SendSlackMessageToUser(slackClient, privateChannel.ID, "Kind Message TESTS (PS: DSL LOUIS SI CA TOMBE SUR TOI :P )")
-					if err != nil {
+					} else if err = simba.SendImage(slackClient, privateChannel.ID, filePath, title, "Someone thought about you :hugging_face and wanted to send you some kind image"); err != nil {
 						return err
 					}
 					return nil
+
 				default:
 					log.Printf("WARNING ENTERED IN DEFAULT !!!")
 					return fmt.Errorf("Entered in default case")
