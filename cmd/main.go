@@ -17,11 +17,13 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/saisona/simba"
 	"github.com/slack-go/slack"
+	"github.com/slack-go/slack/slackevents"
 	"gorm.io/gorm"
 )
 
@@ -112,22 +114,17 @@ func main() {
 	}
 
 	slackClient := slack.New(config.SLACK_API_TOKEN, slack.OptionDebug(true), slack.OptionLog(log.Default()))
-	scheduler, job, err := simba.InitScheduler(dbClient, slackClient, config)
+	scheduler, _, err := simba.InitScheduler(dbClient, slackClient, config)
+	if err != nil {
+		e.Logger.Fatalf("Failed launching server: %s", err.Error())
+	}
+
 	scheduler.StartAsync()
 
 	var threadTS string
 
 	// call anonymous goroutine
 	go watchValueChanged(&threadTS, config.SLACK_MESSAGE_CHANNEL, e.Logger)
-
-	if err != nil {
-		e.Logger.Fatalf("Failed launching server: %s", err.Error())
-	}
-
-	jErr := job.Error()
-	if jErr != nil {
-		e.Logger.Fatalf("Job has failed: %s", jErr.Error())
-	}
 
 	e.GET("/healthz", func(c echo.Context) error {
 		return c.NoContent(http.StatusNoContent)
@@ -136,35 +133,68 @@ func main() {
 	e.POST("/events", func(c echo.Context) error {
 		body, err := ioutil.ReadAll(c.Request().Body)
 		if err != nil {
-			c.Response().Writer.WriteHeader(http.StatusBadRequest)
+			c.NoContent(http.StatusBadRequest)
 			return err
 		}
 		sv, err := slack.NewSecretsVerifier(c.Request().Header, slackSigningSecret)
 		if err != nil {
-			c.Response().Writer.WriteHeader(http.StatusBadRequest)
+			c.NoContent(http.StatusBadRequest)
 			return err
 		}
 		if _, err := sv.Write(body); err != nil {
-			c.Response().Writer.WriteHeader(http.StatusInternalServerError)
+			c.NoContent(http.StatusInternalServerError)
 			return err
 		}
 		if err := sv.Ensure(); err != nil {
-			c.Response().Writer.WriteHeader(http.StatusUnauthorized)
+			c.NoContent(http.StatusUnauthorized)
+			return err
+
+		}
+
+		eventsAPIEvent, err := slackevents.ParseEvent(json.RawMessage(body), slackevents.OptionNoVerifyToken())
+		if err != nil {
+			c.NoContent(http.StatusInternalServerError)
 			return err
 		}
 
-		var slackVerificationToken simba.SlackVerificationStruct
-		e.Logger.Debug("SlackEventMapping >", slack.EventMapping)
-		if err := c.Bind(&slackVerificationToken); err != nil {
-			return err
+		if eventsAPIEvent.Type == slackevents.URLVerification {
+			var r *slackevents.ChallengeResponse
+			err := json.Unmarshal([]byte(body), &r)
+			if err != nil {
+				c.NoContent(http.StatusInternalServerError)
+				return err
+			}
+			c.String(http.StatusOK, r.Challenge)
 		}
-		e.Logger.Printf("slackVerificationToken=%+v", slackVerificationToken)
-		return c.String(http.StatusOK, slackVerificationToken.Challenge)
+
+		if eventsAPIEvent.Type == slackevents.CallbackEvent {
+			innerEvent := eventsAPIEvent.InnerEvent
+			switch ev := innerEvent.Data.(type) {
+			case *slackevents.AppHomeOpenedEvent:
+				view := slack.NewClearViewSubmissionResponse().View
+				triggerId := fmt.Sprintf("open_modal_%s_%d", ev.User, time.Now().UnixMilli())
+				viewResponse, err := slackClient.OpenView(triggerId, *view)
+				if err != nil {
+					return err
+				}
+				responseMetaMsg := viewResponse.ResponseMetadata.Messages
+				if len(responseMetaMsg) > 0 {
+					c.Logger().Debugf("responseMetaMsg=%+v", responseMetaMsg)
+				}
+				fmt.Printf("")
+
+			case *slackevents.AppMentionEvent:
+				slackClient.PostMessage(ev.Channel, slack.MsgOptionText("Yes, hello.", false))
+			}
+		}
+
+		return nil
 	})
 
 	e.POST("/interactive", func(c echo.Context) error {
 		callBackStruct := new(slack.InteractionCallback)
 		err := json.Unmarshal([]byte(c.Request().FormValue("payload")), &callBackStruct)
+		c.Logger().Debugf("CallbackStruct = %+v", callBackStruct)
 
 		if err != nil {
 			return err
