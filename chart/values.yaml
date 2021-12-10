@@ -14,6 +14,7 @@ app:
   env: "production"
   channelId: ""
   slackToken: ""
+  slackSigningSecret: ""
   cronExpression: "0 0 10 ? * MON-FRI"
   giphyToken: ""
 

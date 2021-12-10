@@ -12,9 +12,11 @@ COPY go.sum .
 RUN go mod download
 
 COPY cmd/main.go /tmp/go-simba-app/cmd/main.go
+COPY cmd/views.go /tmp/go-simba-app/cmd/views.go
+COPY cmd/handlers.go /tmp/go-simba-app/cmd/handlers.go
 COPY *.go /tmp/go-simba-app/
 
-RUN go build -o ./out/app cmd/main.go
+RUN go build -o ./out/app cmd/main.go cmd/views.go cmd/handlers.go
 
 # Start fresh from a smaller image
 FROM alpine:3.13.1
