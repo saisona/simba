@@ -17,75 +17,13 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/saisona/simba"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
-	"gorm.io/gorm"
 )
-
-func watchValueChanged(valueToChange *string, channel chan string, logger echo.Logger) {
-	for val, more := <-channel; !more; {
-		logger.Debugf("received new value for ThreadTS=", val)
-		if valueToChange != nil {
-			logger.Debugf("OldValue=%s\n", *valueToChange)
-			*valueToChange = val
-			logger.Debugf("NewValue=%s\n", *valueToChange)
-		} else {
-		}
-	}
-}
-
-func handleError(errChan chan error, c echo.Context) {
-	for hasErr, more := <-errChan; more; {
-		if hasErr != nil {
-			c.Error(hasErr)
-		}
-		log.Printf("No error")
-	}
-}
-
-func handleUpdateMood(config *simba.Config, slackClient *slack.Client, dbClient *gorm.DB, threadTS, channelId, userId, username string, action *slack.BlockAction) error {
-	if err := simba.HandleAddDailyMood(dbClient, channelId, userId, username, action.Value, ""); err != nil {
-		return err
-	} else {
-		log.Printf("Mood %s has been added for the daily for %s", action.Value, username)
-		slackMessage := fmt.Sprintf("<@%s> has responded to the daily message with %s", userId, strings.ReplaceAll(action.Value, "_", " "))
-		simba.SendSlackTSMessage(slackClient, config, slackMessage, threadTS)
-		slackClient.AddReaction("robot_face", slack.ItemRef{Timestamp: threadTS, Channel: channelId})
-		return nil
-	}
-}
-
-func handleSendKindMessage(slackClient *slack.Client, errChan chan error, userId string, action *slack.BlockAction) error {
-	log.Printf("Warning this has to be handled by another thing (blockId:%s, value:%s)", action.ActionID, action.Value)
-	defer close(errChan)
-	privateChannel, _, _, err := slackClient.OpenConversation(&slack.OpenConversationParameters{Users: []string{action.Value}})
-	if err != nil {
-		log.Printf("WARNING CANNOT OPEN PRIVATE CONV : %s\nPrivateChannel=%+v", err.Error(), privateChannel)
-		return err
-	}
-
-	words := simba.GenerateBuzzWords()
-	title, urlToDownload, err := simba.FetchRelatedGif(words[simba.GenerateRandomIndexBuzzWord(words)])
-	if err != nil {
-		return err
-	}
-
-	filePath := fmt.Sprintf("/tmp/%s", title)
-	comment := fmt.Sprintf("<@%s> thought about you :hugging_face: and wanted to send you some kind image", userId)
-	if err := simba.DownloadFile(filePath, urlToDownload, false); err != nil {
-		errChan <- err
-		return err
-	} else if err = simba.SendImage(slackClient, privateChannel.ID, filePath, title, comment); err != nil {
-		errChan <- err
-		return err
-	}
-	return nil
-}
 
 func main() {
 	e := echo.New()
@@ -171,20 +109,22 @@ func main() {
 			innerEvent := eventsAPIEvent.InnerEvent
 			switch ev := innerEvent.Data.(type) {
 			case *slackevents.AppHomeOpenedEvent:
-				view := slack.NewClearViewSubmissionResponse().View
-				triggerId := fmt.Sprintf("open_modal_%s_%d", ev.User, time.Now().UnixMilli())
-				viewResponse, err := slackClient.OpenView(triggerId, *view)
+				viewResponse, err := slackClient.PublishView(ev.User, handleAppHomeView(dbClient, ev.User), "")
 				if err != nil {
+					log.Printf("Error on launching Home: %s\n", err.Error())
+					log.Printf("[ERROR] response => %+v", viewResponse)
 					return err
+				}
+				if viewResponse.Err() != nil {
+					log.Printf("[ERROR] err = %s", viewResponse.Err().Error())
 				}
 				responseMetaMsg := viewResponse.ResponseMetadata.Messages
 				if len(responseMetaMsg) > 0 {
-					c.Logger().Debugf("responseMetaMsg=%+v", responseMetaMsg)
+					log.Printf("responseMetaMsg=%+v", responseMetaMsg)
 				}
-				fmt.Printf("")
 
 			case *slackevents.AppMentionEvent:
-				slackClient.PostMessage(ev.Channel, slack.MsgOptionText("Yes, hello.", false))
+				slackClient.PostMessage(ev.Channel, slack.MsgOptionText("Meow :cat:", false))
 			}
 		}
 
@@ -194,7 +134,7 @@ func main() {
 	e.POST("/interactive", func(c echo.Context) error {
 		callBackStruct := new(slack.InteractionCallback)
 		err := json.Unmarshal([]byte(c.Request().FormValue("payload")), &callBackStruct)
-		c.Logger().Debugf("CallbackStruct = %+v", callBackStruct)
+		log.Println("CallbackStruct = ", callBackStruct)
 
 		if err != nil {
 			return err
@@ -225,7 +165,6 @@ func main() {
 					go handleUpdateMood(config, slackClient, dbClient, threadTS, channelId, userId, username, action)
 				case strings.Contains(action.ActionID, "send_kind_message"):
 					errChan := make(chan error, 1)
-					defer close(errChan)
 					go handleError(errChan, c)
 					go handleSendKindMessage(slackClient, errChan, userId, action)
 
