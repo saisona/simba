@@ -68,25 +68,6 @@ func SendSlackMessageToUser(client *slack.Client, userId, message string) (strin
 	return threadTS, nil
 }
 
-//@NotImplemented
-func SendSlackBlocksToUser(client *slack.Client, userId string, blocks []slack.Block, dbClient *gorm.DB) (string, error) {
-	return "", fmt.Errorf("#SendSlackBlocksToUser has not been implemented yet")
-	//if blocks == nil || len(blocks) == 0 {
-	//	blocksDefault := fromJsonToBlocks(dbClient, userId).Blocks.BlockSet
-	//	_, threadTS, err := client.PostMessage(userId, slack.MsgOptionBlocks(blocksDefault...))
-	//	if err != nil {
-	//		return "", err
-	//	}
-	//	return threadTS, nil
-	//} else {
-	//	_, threadTS, err := client.PostMessage(userId, slack.MsgOptionBlocks(blocks...))
-	//	if err != nil {
-	//		return "", err
-	//	}
-	//	return threadTS, nil
-	//}
-}
-
 func fetchQuoteOfTheDay() (string, string, error) {
 	req, err := http.NewRequest("GET", "https://type.fit/api/quotes", nil)
 	if err != nil {
@@ -168,6 +149,10 @@ func secondSectionBlock(dbClient *gorm.DB, channelId string) *slack.SectionBlock
 	return slack.NewSectionBlock(nil, textFields, secondSectionAccessory)
 }
 
+func FetchUserById(slackClient *slack.Client, userId string) (*slack.User, error) {
+	return slackClient.GetUserInfo(userId)
+}
+
 func actionSectionBlock() *slack.ActionBlock {
 	timeNow := time.Now().UnixMilli()
 	actionBlockId := fmt.Sprintf("action_block_mood_user_%d", timeNow)
@@ -204,7 +189,17 @@ func fromJsonToBlocks(dbClient *gorm.DB, channelId string) slack.Message {
 	contextBlock := AddingContextAuthor(authorName)
 	slackSecondSection := secondSectionBlock(dbClient, channelId)
 	actions := actionSectionBlock()
-	return slack.NewBlockMessage(slackFirstSection, contextBlock, slackSecondSection, actions)
+	inputBlock := contextInputText()
+	return slack.NewBlockMessage(slackFirstSection, contextBlock, slackSecondSection, actions, inputBlock, inputBlock)
+}
+
+func contextInputText() *slack.InputBlock {
+	blockId := fmt.Sprintf("bloc_mood_ctxt_%d", time.Now().UnixMilli())
+	actionId := fmt.Sprintf("mood_ctxt_%d", time.Now().UnixMilli())
+
+	//If does not work use true as emoji
+	inputBlockElem := slack.NewPlainTextInputBlockElement(slack.NewTextBlockObject(slack.PlainTextType, "Add Context", false, false), actionId)
+	return slack.NewInputBlock(blockId, slack.NewTextBlockObject(slack.PlainTextType, "Context", true, false), inputBlockElem)
 }
 
 func SendSlackBlocks(client *slack.Client, config *Config, blocks []slack.Block, dbClient *gorm.DB) (string, error) {
@@ -241,4 +236,26 @@ func UpdateMessage(client *slack.Client, config *Config, threadTS string, messag
 		}
 		return newThreadTS, nil
 	}
+}
+
+func FetchUsersFromChannel(slackClient *slack.Client, channelId string) (*slack.Channel, []*slack.User, error) {
+	slackChannel, err := slackClient.GetConversationInfo(channelId, true)
+	if err != nil {
+		return nil, nil, err
+	}
+	channelMembers, channelId, err := slackClient.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: channelId})
+	if err != nil {
+		return nil, nil, err
+	}
+	log.Printf("[DEBUG] channel do has %d(getConversationInfo) / %d(getUsersInConversation) members ", slackChannel.NumMembers, len(channelMembers))
+	slackChannelMembers := make([]*slack.User, len(channelMembers))
+	for idx, userId := range channelMembers {
+		slackUserInfo, err := slackClient.GetUserInfo(userId)
+		if err != nil {
+			log.Printf("Failed fetch User(%d) : %s", idx, err.Error())
+			return slackChannel, slackChannelMembers, err
+		}
+		slackChannelMembers[idx] = slackUserInfo
+	}
+	return slackChannel, slackChannelMembers, nil
 }

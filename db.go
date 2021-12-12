@@ -12,6 +12,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/slack-go/slack"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -90,6 +91,32 @@ func FetchLastPersonInBadMood(dbClient *gorm.DB, channelId string) (*User, *Dail
 	}
 
 	return foundUser, lastBadMood, nil
+}
+
+func IsUserAdmin(dbClient *gorm.DB, userId string) (bool, error) {
+	var user *User
+	fetchUserTx := dbClient.Find(&user, "slack_user_id = ?", userId)
+	if fetchUserTx.Error != nil {
+		return false, fetchUserTx.Error
+	}
+	log.Printf("[DEBUG] User => %+v", user)
+
+	return user.IsManager, nil
+}
+
+func FechCurrent(dbClient *gorm.DB, slackClient *slack.Client, slackUserId string) (*User, *slack.User, error) {
+	var user *User
+	fetchUserTx := dbClient.Find(&user, "slack_user_id = ?", slackUserId)
+	if fetchUserTx.Error != nil {
+		return nil, nil, fetchUserTx.Error
+	}
+
+	slackUser, err := FetchUserById(slackClient, slackUserId)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return user, slackUser, nil
 }
 
 type User struct {
