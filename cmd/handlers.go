@@ -25,15 +25,6 @@ func watchValueChanged(valueToChange *string, channel chan string, logger echo.L
 	}
 }
 
-func handleError(errChan chan error, c echo.Context) {
-	for hasErr, more := <-errChan; more; {
-		if hasErr != nil {
-			c.Error(hasErr)
-		}
-		log.Printf("No error")
-	}
-}
-
 func handleUpdateMood(config *simba.Config, slackClient *slack.Client, dbClient *gorm.DB, threadTS, channelId, userId, username string, action *slack.BlockAction) error {
 	if err := simba.HandleAddDailyMood(dbClient, channelId, userId, username, action.Value, ""); err != nil {
 		return err
@@ -46,9 +37,8 @@ func handleUpdateMood(config *simba.Config, slackClient *slack.Client, dbClient 
 	}
 }
 
-func handleSendKindMessage(slackClient *slack.Client, errChan chan error, userId string, action *slack.BlockAction) error {
+func handleSendKindMessage(slackClient *slack.Client, userId string, action *slack.BlockAction) error {
 	log.Printf("Warning this has to be handled by another thing (blockId:%s, value:%s)", action.ActionID, action.Value)
-	defer close(errChan)
 	privateChannel, _, _, err := slackClient.OpenConversation(&slack.OpenConversationParameters{Users: []string{action.Value}})
 	if err != nil {
 		log.Printf("WARNING CANNOT OPEN PRIVATE CONV : %s\nPrivateChannel=%+v", err.Error(), privateChannel)
@@ -64,10 +54,8 @@ func handleSendKindMessage(slackClient *slack.Client, errChan chan error, userId
 	filePath := fmt.Sprintf("/tmp/%s", title)
 	comment := fmt.Sprintf("<@%s> thought about you :hugging_face: and wanted to send you some kind image", userId)
 	if err := simba.DownloadFile(filePath, urlToDownload, false); err != nil {
-		errChan <- err
 		return err
 	} else if err = simba.SendImage(slackClient, privateChannel.ID, filePath, title, comment); err != nil {
-		errChan <- err
 		return err
 	}
 	return nil

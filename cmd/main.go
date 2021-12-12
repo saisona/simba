@@ -109,7 +109,7 @@ func main() {
 			innerEvent := eventsAPIEvent.InnerEvent
 			switch ev := innerEvent.Data.(type) {
 			case *slackevents.AppHomeOpenedEvent:
-				viewResponse, err := slackClient.PublishView(ev.User, handleAppHomeView(dbClient, ev.User), "")
+				viewResponse, err := slackClient.PublishView(ev.User, handleAppHomeView(slackClient, dbClient, config, ev.User), "")
 				if err != nil {
 					log.Printf("Error on launching Home: %s\n", err.Error())
 					log.Printf("[ERROR] response => %+v", viewResponse)
@@ -155,23 +155,37 @@ func main() {
 			if err != nil {
 				log.Printf("Warning some error while fetchingProfile:  %s ", err.Error())
 				username = "John Snow"
+				c.Logger().Error("[ERROR] #getUserProfile => %s", err.Error())
 			} else {
 				username = profile.DisplayName
 			}
 
 			for _, action := range blockActions {
 				switch {
+				case strings.Contains(action.ActionID, "mood_ctxt"):
+					c.Logger().Debugf("Enter in %s with value = %s", action.ActionID, action.Value)
 				case strings.Contains(action.ActionID, "mood_user"):
 					go handleUpdateMood(config, slackClient, dbClient, threadTS, channelId, userId, username, action)
 				case strings.Contains(action.ActionID, "send_kind_message"):
-					errChan := make(chan error, 1)
-					go handleError(errChan, c)
-					go handleSendKindMessage(slackClient, errChan, userId, action)
+					go handleSendKindMessage(slackClient, userId, action)
+				case strings.Contains(action.ActionID, "channel_selected"):
+					c.Logger().Printf("Enter channelSelected => %s", action.SelectedChannel)
+					_, users, err := simba.FetchUsersFromChannel(slackClient, action.SelectedChannel)
 
+					if err != nil {
+						c.Logger().Error(err)
+						return err
+					}
+					viewResponse, err := slackClient.PublishView(userId, handleAppHomeViewUpdated(slackClient, dbClient, config, userId, action.SelectedChannel, users), "")
+					if err != nil {
+						c.Logger().Error(err)
+						c.Logger().Error(viewResponse.Err())
+						return err
+					}
 				default:
-					c.Logger().Warn("Action is in default case, which means not handled at the moment")
-					c.Logger().Printf("User (Id:%s) %s clicked on (ActionId:%s, ActionValue:%s)", userId, username, action.ActionID, action.Value)
-					return fmt.Errorf("Entered in default case")
+					err := fmt.Errorf("ActionId %s (Value:%s/SelectedChannel:%s) is not registered (default case)", action.ActionID, action.Value, action.SelectedChannel)
+					c.Logger().Error(err)
+					return err
 				}
 			}
 		} else {
@@ -179,6 +193,13 @@ func main() {
 		}
 
 		return nil
+	})
+
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			c.Set("slackClient", slackClient)
+			return next(c)
+		}
 	})
 
 	defer close(config.SLACK_MESSAGE_CHANNEL)
