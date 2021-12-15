@@ -7,7 +7,6 @@ import (
 
 	"github.com/saisona/simba"
 	"github.com/slack-go/slack"
-	"gorm.io/gorm"
 )
 
 func slackMkDownBlock(text string) *slack.TextBlockObject {
@@ -28,61 +27,45 @@ func slackTextBlock(text string) *slack.TextBlockObject {
 	return textObject
 }
 
-func handleAppHomeView(slackClient *slack.Client, dbClient *gorm.DB, config *simba.Config, userId string) slack.HomeTabViewRequest {
-	callbackId := fmt.Sprintf("app_home_callback_%d", time.Now().UnixMilli())
-	externalId := fmt.Sprintf("app_home_external_%d", time.Now().UnixMilli())
-	user, slackUser, err := simba.FechCurrent(dbClient, slackClient, userId)
-	if err != nil {
-		log.Printf("Error during OpenView to fetch Admin = %s", err.Error())
-	}
-	var blocks slack.Blocks
-	if user.IsManager || slackUser.IsAdmin {
-		blocks = handleAppHomeViewAdmin(user, config, "")
-	} else {
-		blocks = handleAppHomeViewNotAdmin(user)
+func viewAppModalMood(userId, username, mood string) slack.ModalViewRequest {
+
+	blockActionId := fmt.Sprintf("mood_feeling_%s_%d", userId, time.Now().UnixMilli())
+	var feelingButtonList []slack.BlockElement
+
+	switch mood {
+	case "good_mood":
+		excitedButton := slack.NewButtonBlockElement("excited_mood_feeling_select", "Excited", slackTextBlock("Excited :star-struck:"))
+		happyButton := slack.NewButtonBlockElement("happy_mood_feeling_select", "Happy", slackTextBlock("Happy :smile:"))
+		chillingButton := slack.NewButtonBlockElement("chilling_mood_feeling_select", "Chilling", slackTextBlock("Chilling :relaxed:"))
+		feelingButtonList = []slack.BlockElement{excitedButton, happyButton, chillingButton}
+	case "average_mood":
+		neutral := slack.NewButtonBlockElement("neutral_mood_feeling_select", "Neutral", slackTextBlock("Neutral :expressionless:"))
+		frustratedButton := slack.NewButtonBlockElement("frustrated_mood_feeling_select", "Frustrated", slackTextBlock("Frustrated :face_with_rolling_eyes:"))
+		tiredButton := slack.NewButtonBlockElement("tired_mood_feeling_select", "Tired", slackTextBlock("Tired :yawning_face:"))
+		feelingButtonList = []slack.BlockElement{neutral, frustratedButton, tiredButton}
+	case "bad_mood":
+		sadButton := slack.NewButtonBlockElement("sad_mood_feeling_select", "Sad", slackTextBlock("Sad :cry:"))
+		triumphButton := slack.NewButtonBlockElement("triumph_mood_feeling_select", "Mad", slackTextBlock("Mad :triumph:"))
+		disappointedButton := slack.NewButtonBlockElement("disappointed_mood_feeling_select", "Disappointed", slackTextBlock("Disappointed :disappointed:"))
+		feelingButtonList = []slack.BlockElement{sadButton, triumphButton, disappointedButton}
+	default:
+		log.Printf("[ERROR] entered in default case about mood")
 	}
 
-	slackModalViewRequest := slack.HomeTabViewRequest{
-		Type:       slack.VTHomeTab,
-		CallbackID: callbackId,
-		ExternalID: externalId,
-		Blocks:     blocks,
-	}
+	blockAction := slack.NewActionBlock(blockActionId, feelingButtonList...)
+	inputBlock := simba.ContextInputText()
 
-	log.Printf("[DEBUG] slackModalViewRequest=%+v\n", slackModalViewRequest)
-	return slackModalViewRequest
-}
+	blockSet := []slack.Block{blockAction, inputBlock}
 
-func handleAppHomeViewUpdated(slackClient *slack.Client, dbClient *gorm.DB, config *simba.Config, userId string, channelId string, channelUsers []*slack.User) slack.HomeTabViewRequest {
-	callbackId := fmt.Sprintf("app_home_callback_%d", time.Now().UnixMilli())
-	externalId := fmt.Sprintf("app_home_external_%d", time.Now().UnixMilli())
-	user, _, err := simba.FechCurrent(dbClient, slackClient, userId)
-	if err != nil {
-		log.Printf("Error during OpenView to fetch Admin = %s", err.Error())
-		return slack.HomeTabViewRequest{}
-	}
-	var blocks slack.Blocks
-	blocks = handleAppHomeViewAdmin(user, config, channelId)
-	userProfile, err := slackClient.GetUserProfile(&slack.GetUserProfileParameters{UserID: userId})
-	if err != nil {
-		log.Printf("Cannot fetch UserProfile : %s", err.Error())
-		return slack.HomeTabViewRequest{}
-	}
+	slackBlocks := slack.Blocks{BlockSet: blockSet}
 
-	for _, user := range channelUsers {
-		userListName := slackMkDownBlock(fmt.Sprintf("*%s*", userProfile.DisplayName))
-		msgAction := slack.NewAccessory(slack.NewButtonBlockElement(fmt.Sprintf("direct_message_%s", user.ID), user.ID, slackTextBlock("Send IM")))
-		userListItem := slack.NewSectionBlock(userListName, nil, msgAction)
-		blocks.BlockSet = append(blocks.BlockSet, userListItem)
+	return slack.ModalViewRequest{
+		Type:         slack.VTModal,
+		Blocks:       slackBlocks,
+		Title:        slackTextBlock("What's your mood"),
+		Close:        slackTextBlock("Cancel"),
+		Submit:       slackTextBlock("Share"),
+		CallbackID:   fmt.Sprintf("mood_modal_sharing"),
+		ClearOnClose: true,
 	}
-
-	slackModalViewRequest := slack.HomeTabViewRequest{
-		Type:       slack.VTHomeTab,
-		CallbackID: callbackId,
-		ExternalID: externalId,
-		Blocks:     blocks,
-	}
-
-	log.Printf("[DEBUG] slackModalViewRequest=%+v\n", slackModalViewRequest)
-	return slackModalViewRequest
 }
