@@ -17,10 +17,10 @@ import (
 	"gorm.io/gorm"
 )
 
-func funcHandler(dbClient *gorm.DB, client *slack.Client, config *Config) error {
-	threadTs, err := SendSlackBlocks(client, config, nil, dbClient)
+func funcHandler(dbClient *gorm.DB, client *slack.Client, config *Config, previousBlocks []slack.Block, slackBlockChan chan []slack.Block) error {
+	threadTs, err := SendSlackBlocks(client, config, dbClient, previousBlocks, true, slackBlockChan)
 	if err != nil {
-		log.Printf("Error => %s", err)
+		log.Printf("#SendSlackBlocks error => %s", err)
 		return err
 	}
 	//Sending threadTS
@@ -28,7 +28,7 @@ func funcHandler(dbClient *gorm.DB, client *slack.Client, config *Config) error 
 	return nil
 }
 
-func InitScheduler(dbClient *gorm.DB, client *slack.Client, config *Config) (*gocron.Scheduler, *gocron.Job, error) {
+func InitScheduler(dbClient *gorm.DB, client *slack.Client, config *Config, previousBlocks []slack.Block, slackBlockChan chan []slack.Block) (*gocron.Scheduler, *gocron.Job, error) {
 	scheduler := gocron.NewScheduler(time.Local)
 	if os.Getenv("APP_ENV") == "production" {
 		scheduler.CronWithSeconds(config.CRON_EXPRESSION)
@@ -38,22 +38,21 @@ func InitScheduler(dbClient *gorm.DB, client *slack.Client, config *Config) (*go
 		scheduler.Every(10).Minute()
 	}
 
-	job, err := scheduler.Do(funcHandler, dbClient, client, config)
+	job, err := scheduler.Do(funcHandler, dbClient, client, config, previousBlocks, slackBlockChan)
 	if err != nil {
 		return scheduler, nil, err
 	} else if job.Error() != nil {
 		return scheduler, job, err
 	}
 
+	go watcherNewBadMoodUser(dbClient, client, config)
+
 	return scheduler, job, nil
 }
 
-func watcherNewBadMoodUser(client *slack.Client, config *Config) error {
+func watcherNewBadMoodUser(dbClient *gorm.DB, client *slack.Client, config *Config) {
 	for {
-		select {
-		case newBadMoodUser := <-config.LAST_BAD_MOOD_USER:
-			log.Println("newBadMoodUser=", newBadMoodUser)
-			//TODO: handle new Bad Mood user to update message
-		}
+		newBadMoodUser := <-config.LAST_BAD_MOOD_USER
+		log.Println("newBadMoodUser=", newBadMoodUser)
 	}
 }
