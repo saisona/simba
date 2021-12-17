@@ -85,8 +85,30 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 	err := json.Unmarshal([]byte(c.Request().FormValue("payload")), &callBackStruct)
 
 	if err != nil {
+		c.Logger().Errorf("Error from FormValue.payload in callbackStruct = %s", err.Error())
 		return err
-	} else if len(callBackStruct.ActionCallback.BlockActions) > 0 {
+	} else if modalValue := callBackStruct.View.State; modalValue != nil && len(modalValue.Values) > 0 {
+		if modalValue.Values["MoodContext"]["mood_ctxt"].Value != "" {
+			contextString := modalValue.Values["MoodContext"]["mood_ctxt"].Value
+			privateMetadata := callBackStruct.View.PrivateMetadata
+			log.Printf("ContextString=%s // PrivateMetadata=%s", contextString, privateMetadata)
+			moodIdSplit := strings.Split(privateMetadata, "::")
+			log.Printf("moodId to update is %v %s", moodIdSplit, moodIdSplit[0])
+			_, err := simba.UpdateMoodById(dbClient, moodIdSplit[1], nil, &contextString)
+			if err != nil {
+				return err
+			}
+			// simba.UpdateMood(dbClient)
+			threadTS, err := simba.UpdateMessage(slackClient, config, dbClient, threadTS, false)
+			if err != nil {
+				return err
+			}
+			config.SLACK_MESSAGE_CHANNEL <- threadTS
+		}
+		return nil
+	}
+
+	if len(callBackStruct.ActionCallback.BlockActions) > 0 {
 		blockActions := callBackStruct.ActionCallback.BlockActions
 		user := callBackStruct.User
 		channelId := callBackStruct.Channel.ID
@@ -102,26 +124,56 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 		}
 
 		for _, action := range blockActions {
+			log.Println("ActionBlock", action.ActionID, action.Value)
 			switch {
 			case strings.Contains(action.ActionID, "mood_feeling_select"):
-				go handleUpdateMood(config, slackClient, dbClient, threadTS, channelId, userId, username, action)
-			case strings.Contains(action.ActionID, "mood_ctxt_cancel"):
-				newThreadTS, err := simba.UpdateMessage(slackClient, config, dbClient, threadTS, true)
+				c.Logger().Printf("Clicked on button for mood_feeling_select with value = %s", action.Value)
+				log.Printf("Clicked on button for mood_feeling_select with value = %s", action.Value)
+				simbaUser, _, err := simba.FechCurrent(dbClient, slackClient, userId)
 				if err != nil {
 					return err
 				}
-				config.SLACK_MESSAGE_CHANNEL <- newThreadTS
+				dailyMood, err := simba.FetchMoodFromThreadTS(dbClient, threadTS, simbaUser.ID)
+				if err != nil {
+					return err
+				}
+				if _, err := simba.UpdateMood(dbClient, dailyMood, &action.Value, nil); err != nil {
+					return err
+				}
+
+				threadTS, err := simba.UpdateMessage(slackClient, config, dbClient, threadTS, false)
+				if err != nil {
+					return err
+				}
+				config.SLACK_MESSAGE_CHANNEL <- threadTS
+
+				return nil
+				// return handleUpdateMood(config, slackClient, dbClient, threadTS, channelId, userId, username, action, previousBlocks)
 			case strings.Contains(action.ActionID, "mood_ctxt"):
 				c.Logger().Printf("user %s added context : %s", userId, action.Value)
 				slackMessage := fmt.Sprintf("<@%s> added %s", userId, action.Value)
-				simba.SendSlackTSMessage(slackClient, config, slackMessage, threadTS)
+				log.Println("Adding mood_ctxt = ", slackMessage)
+				// simba.SendSlackTSMessage(slackClient, config, slackMessage, threadTS)
+
 			case strings.Contains(action.ActionID, "mood_user"):
-				viewModal := viewAppModalMood(userId, username, action.Value)
+				dailyMood, err := simba.HandleAddDailyMood(dbClient, slackClient, channelId, userId, username, action.Value, threadTS)
+				if err != nil {
+					return err
+				}
+				viewModal := viewAppModalMood(userId, username, action.Value, dailyMood.ID)
 				viewResponse, err := slackClient.OpenView(callBackStruct.TriggerID, viewModal)
 				if err != nil {
 					c.Logger().Errorf("Failed open modal view %s", err.Error())
 					c.Logger().Errorf("MetadataError %v", viewResponse.ResponseMetadata.Messages)
 				}
+
+				threadTS, err := simba.UpdateMessage(slackClient, config, dbClient, threadTS, false)
+				if err != nil {
+					return err
+				}
+				config.SLACK_MESSAGE_CHANNEL <- threadTS
+
+				c.Logger().Infof("privateMetadata=%s", viewResponse.PrivateMetadata)
 			case strings.Contains(action.ActionID, "send_kind_message"):
 				go handleSendKindMessage(slackClient, userId, action)
 			case strings.Contains(action.ActionID, "channel_selected"):
@@ -139,11 +191,12 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 					return err
 				}
 			default:
-				err := fmt.Errorf("ActionId %s (Value:%s/SelectedChannel:%s) is not registered (default case)", action.ActionID, action.Value, action.SelectedChannel)
-				c.Logger().Error(err)
+				err := simba.NewErrNoActionFound(action.ActionID, action.Value)
+				log.Println(err)
 				return err
 			}
 		}
+
 	} else {
 		return fmt.Errorf("nothing has been received when clicking the button")
 	}

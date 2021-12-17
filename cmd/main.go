@@ -22,19 +22,17 @@ func main() {
 	e.Use(middleware.Logger())
 	e.Use(middleware.RecoverWithConfig(middleware.RecoverConfig{LogLevel: 2}))
 
-	slackBlockChan := make(chan []slack.Block)
+	var threadTS string
 
-	slackSigningSecret, config, dbClient, slackClient, scheduler, err := initApplication(e, slackBlockChan)
+	slackSigningSecret, config, dbClient, slackClient, scheduler, err := initApplication(e, threadTS)
 	if err != nil {
 		e.Logger.Fatal("initApplication failed : %s", err.Error())
 		return
 	}
 
-	var threadTS string
 	var previousBlocks []slack.Block
 
 	go watchValueChanged(&threadTS, config.SLACK_MESSAGE_CHANNEL, e.Logger)
-	go watchPreviousBlockChanged(slackBlockChan, &previousBlocks, e.Logger)
 
 	scheduler.StartAsync()
 
@@ -47,7 +45,7 @@ func main() {
 	})
 
 	e.POST("/interactive", func(c echo.Context) error {
-		return handleRouteInteractive(c, slackClient, config, dbClient, threadTS)
+		return handleRouteInteractive(c, slackClient, config, dbClient, threadTS, previousBlocks)
 	})
 
 	defer close(config.SLACK_MESSAGE_CHANNEL)

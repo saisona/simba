@@ -68,7 +68,6 @@ func handleAppHomeView(slackClient *slack.Client, dbClient *gorm.DB, config *sim
 		Blocks:     blocks,
 	}
 
-	log.Printf("[DEBUG] slackModalViewRequest=%+v\n", slackModalViewRequest)
 	return slackModalViewRequest
 }
 
@@ -80,8 +79,7 @@ func handleAppHomeViewUpdated(slackClient *slack.Client, dbClient *gorm.DB, conf
 		log.Printf("Error during OpenView to fetch Admin = %s", err.Error())
 		return slack.HomeTabViewRequest{}
 	}
-	var blocks slack.Blocks
-	blocks = handleAppHomeViewAdmin(user, config, channelId)
+	var blocks slack.Blocks = handleAppHomeViewAdmin(user, config, channelId)
 
 	for _, user := range channelUsers {
 		userProfile, err := slackClient.GetUserProfile(&slack.GetUserProfileParameters{UserID: userId})

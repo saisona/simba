@@ -17,8 +17,8 @@ import (
 	"gorm.io/gorm"
 )
 
-func funcHandler(dbClient *gorm.DB, client *slack.Client, config *Config, previousBlocks []slack.Block, slackBlockChan chan []slack.Block) error {
-	threadTs, err := SendSlackBlocks(client, config, dbClient, previousBlocks, true, slackBlockChan)
+func funcHandler(dbClient *gorm.DB, client *slack.Client, config *Config, threadTS string) error {
+	threadTs, err := SendSlackBlocks(client, config, dbClient, threadTS, true)
 	if err != nil {
 		log.Printf("#SendSlackBlocks error => %s", err)
 		return err
@@ -28,7 +28,7 @@ func funcHandler(dbClient *gorm.DB, client *slack.Client, config *Config, previo
 	return nil
 }
 
-func InitScheduler(dbClient *gorm.DB, client *slack.Client, config *Config, previousBlocks []slack.Block, slackBlockChan chan []slack.Block) (*gocron.Scheduler, *gocron.Job, error) {
+func InitScheduler(dbClient *gorm.DB, client *slack.Client, config *Config, threadTS string) (*gocron.Scheduler, *gocron.Job, error) {
 	scheduler := gocron.NewScheduler(time.Local)
 	if os.Getenv("APP_ENV") == "production" {
 		scheduler.CronWithSeconds(config.CRON_EXPRESSION)
@@ -38,21 +38,12 @@ func InitScheduler(dbClient *gorm.DB, client *slack.Client, config *Config, prev
 		scheduler.Every(10).Minute()
 	}
 
-	job, err := scheduler.Do(funcHandler, dbClient, client, config, previousBlocks, slackBlockChan)
+	job, err := scheduler.Do(funcHandler, dbClient, client, config, threadTS)
 	if err != nil {
 		return scheduler, nil, err
 	} else if job.Error() != nil {
 		return scheduler, job, err
 	}
 
-	go watcherNewBadMoodUser(dbClient, client, config)
-
 	return scheduler, job, nil
-}
-
-func watcherNewBadMoodUser(dbClient *gorm.DB, client *slack.Client, config *Config) {
-	for {
-		newBadMoodUser := <-config.LAST_BAD_MOOD_USER
-		log.Println("newBadMoodUser=", newBadMoodUser)
-	}
 }

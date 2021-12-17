@@ -10,6 +10,7 @@ package simba
 import (
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/slack-go/slack"
@@ -19,6 +20,11 @@ import (
 
 func handleMigration(db *gorm.DB) error {
 	// create database foreign key for user & credit_cards
+
+	if err := db.AutoMigrate(&User{}); err != nil {
+		return err
+	}
+
 	if !db.Migrator().HasConstraint(&User{}, "Moods") {
 		if err := db.Migrator().CreateConstraint(&User{}, "Moods"); err != nil {
 			log.Printf("Cannot create basic constraint for DailyMoods and Users: %s", err.Error())
@@ -31,9 +37,6 @@ func handleMigration(db *gorm.DB) error {
 		}
 	}
 
-	if err := db.AutoMigrate(&User{}, &DailyMood{}); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -56,41 +59,127 @@ func InitDbClient(dbHost, dbUser, dbPassword, dbName string, migrate bool) *gorm
 	return db
 }
 
-func HandleAddDailyMood(dbClient *gorm.DB, channelId string, userId string, userName string, mood string, context string) error {
-	var foundUser User
-	tx := dbClient.Where(User{SlackUserID: userId, Username: userName, SlackChannelId: channelId}).FirstOrCreate(&foundUser, User{SlackUserID: userId, Username: userName, SlackChannelId: channelId})
-	if tx.Error != nil {
-		return tx.Error
+func UpdateMood(dbClient *gorm.DB, sourceMood *DailyMood, feeling *string, context *string) (*DailyMood, error) {
+	if sourceMood == nil {
+		return nil, fmt.Errorf("sourceMood is nil")
 	}
-
-	dailyMoodToCreate := &DailyMood{UserID: foundUser.ID, Mood: mood, Context: ""}
-	moodCreationTx := dbClient.Create(dailyMoodToCreate)
-
-	if moodCreationTx.Error != nil {
-		log.Printf("StatementError : %s", moodCreationTx.Statement.Error)
-		return moodCreationTx.Error
+	if feeling != nil {
+		tx := dbClient.Model(sourceMood).Update("feeling", *feeling)
+		if tx.Error != nil {
+			return sourceMood, tx.Error
+		}
 	}
-
-	return nil
+	if context != nil {
+		tx := dbClient.Model(sourceMood).Update("context", *context)
+		if tx.Error != nil {
+			return sourceMood, tx.Error
+		}
+	}
+	return sourceMood, nil
 }
 
-func FetchLastPersonInBadMood(dbClient *gorm.DB, channelId string) (*User, *DailyMood, error) {
-	var foundUser *User
-	var lastBadMood *DailyMood
-
-	//Find related BadMood
-	txBadMood := dbClient.Where("mood = ?", "bad_mood").Last(&lastBadMood)
-	if txBadMood.Error != nil {
-		return nil, nil, txBadMood.Error
+func UpdateMoodById(dbClient *gorm.DB, moodId string, feeling *string, context *string) (*DailyMood, error) {
+	var sourceMood DailyMood
+	if tx := dbClient.Debug().First(&sourceMood, "id = ? ", moodId); tx.Error != nil {
+		return &sourceMood, tx.Error
 	}
 
-	//Find last user with BadMood
-	badMoodTx := dbClient.Where(foundUser, lastBadMood.UserID).First(&foundUser)
-	if err := badMoodTx.Error; err != nil {
-		return nil, nil, badMoodTx.Error
+	moodIdInt, _ := strconv.Atoi(moodId)
+
+	if sourceMood.ID != uint(moodIdInt) {
+		return &sourceMood, fmt.Errorf("sourceMood not found for moodId = %s", moodId)
 	}
 
-	return foundUser, lastBadMood, nil
+	if feeling != nil {
+		tx := dbClient.Model(&sourceMood).Update("feeling", *feeling)
+		if tx.Error != nil {
+			return &sourceMood, tx.Error
+		}
+	}
+	if context != nil {
+		tx := dbClient.Model(&sourceMood).Update("context", *context)
+		if tx.Error != nil {
+			return &sourceMood, tx.Error
+		}
+	}
+	return &sourceMood, nil
+}
+
+func HandleAddDailyMood(dbClient *gorm.DB, slackClient *slack.Client, channelId, userId, userName, mood, threadTS string) (*DailyMood, error) {
+	var foundUser User = User{SlackUserID: userId, SlackChannelId: channelId, Username: userName}
+
+	tx := dbClient.FirstOrInit(&foundUser, "username = ?", foundUser.Username)
+	if tx.Error != nil {
+		return nil, fmt.Errorf("firstOrInit: %s", tx.Error)
+	} else if foundUser.ID != 0 {
+		if hasAlreadySetMood, err := HasAlreadySetMood(dbClient, slackClient, userId, threadTS); err != nil {
+			log.Printf("Error hasAlreadySetMood : %s", err.Error())
+			return nil, err
+		} else if hasAlreadySetMood {
+			log.Printf("WARNING : hasAlreadySetMood")
+			return nil, NewErrMoodAlreadySet(userId)
+		}
+	} else {
+		tx = dbClient.Debug().Save(&foundUser)
+		if tx.Error != nil {
+			return nil, tx.Error
+		}
+	}
+
+	moodToCreate := &DailyMood{UserID: foundUser.ID, Mood: mood, ThreadTS: threadTS}
+
+	foundUser.Moods = append(foundUser.Moods, *moodToCreate)
+	tx = dbClient.Debug().Session(&gorm.Session{FullSaveAssociations: true}).Updates(&foundUser)
+	if tx.Error != nil {
+		return nil, fmt.Errorf("update with dailyMood: %s", tx.Error.Error())
+	} else if tx = dbClient.Debug().First(&moodToCreate, "user_id = ? AND thread_ts = ? ", foundUser.ID, threadTS); tx.Error != nil {
+		return nil, fmt.Errorf("fetch real dailyMood failed : %s", tx.Error.Error())
+	}
+
+	return moodToCreate, nil
+}
+
+func HasAlreadySetMood(dbClient *gorm.DB, slackClient *slack.Client, userID, threadTS string) (bool, error) {
+	user, _, err := FechCurrent(dbClient, slackClient, userID)
+	if err != nil {
+		return false, err
+	}
+
+	moodToFind, err := FetchMoodFromThreadTS(dbClient, threadTS, user.ID)
+	if err != nil {
+		return false, err
+	}
+
+	return moodToFind.ID != 0, nil
+}
+
+func FetchMoodFromThreadTS(dbClient *gorm.DB, threadTS string, userId uint) (*DailyMood, error) {
+	var moodToFind DailyMood
+	if tx := dbClient.Debug().Find(&moodToFind, "thread_ts = ? AND user_id = ? ", threadTS, userId); tx.Error != nil {
+		return nil, tx.Error
+	}
+
+	return &moodToFind, nil
+}
+
+func FetchAllDailyMoodsByThreadTS(dbClient *gorm.DB, threadTS string) ([]*User, error) {
+	var dailyMoodsUser []*User
+	dbClient = dbClient.Debug()
+
+	if tx := dbClient.Model(&User{}).Find(&dailyMoodsUser); tx.Error != nil {
+		return nil, tx.Error
+	}
+
+	for _, user := range dailyMoodsUser {
+		var tmpMood []DailyMood
+		err := dbClient.Model(user).Association("Moods").Find(&tmpMood, "thread_ts = ? ", threadTS)
+		if err != nil {
+			return nil, err
+		}
+		user.Moods = tmpMood
+	}
+
+	return dailyMoodsUser, nil
 }
 
 func IsUserAdmin(dbClient *gorm.DB, userId string) (bool, error) {
@@ -99,14 +188,12 @@ func IsUserAdmin(dbClient *gorm.DB, userId string) (bool, error) {
 	if fetchUserTx.Error != nil {
 		return false, fetchUserTx.Error
 	}
-	log.Printf("[DEBUG] User => %+v", user)
-
 	return user.IsManager, nil
 }
 
 func FechCurrent(dbClient *gorm.DB, slackClient *slack.Client, slackUserId string) (*User, *slack.User, error) {
 	var user *User
-	fetchUserTx := dbClient.Find(&user, "slack_user_id = ?", slackUserId)
+	fetchUserTx := dbClient.Debug().Find(&user, "slack_user_id = ?", slackUserId)
 	if fetchUserTx.Error != nil {
 		return nil, nil, fetchUserTx.Error
 	}
@@ -124,8 +211,8 @@ type User struct {
 	SlackUserID    string
 	SlackChannelId string
 	IsManager      bool
-	Username       string `gorm:"unique"`
-	Moods          []DailyMood
+	Username       string      `gorm:"unique"`
+	Moods          []DailyMood `gorm:"many2many:has_moods"`
 }
 
 type DailyMood struct {
@@ -133,5 +220,7 @@ type DailyMood struct {
 	CreatedAt time.Time
 	UserID    uint
 	Mood      string
+	Feeling   string
+	ThreadTS  string
 	Context   string
 }

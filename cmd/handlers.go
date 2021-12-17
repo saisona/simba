@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/go-co-op/gocron"
 	"github.com/labstack/echo/v4"
@@ -28,7 +27,7 @@ func handleMigration(e *echo.Echo) bool {
 	return hasMigration
 }
 
-func initApplication(e *echo.Echo, slackBlockChan chan []slack.Block) (string, *simba.Config, *gorm.DB, *slack.Client, *gocron.Scheduler, error) {
+func initApplication(e *echo.Echo, threadTS string) (string, *simba.Config, *gorm.DB, *slack.Client, *gocron.Scheduler, error) {
 	slackSigningSecret, ok := os.LookupEnv("SLACK_SIGNING_SECRET")
 	if !ok || slackSigningSecret == "" {
 		err := fmt.Errorf("SLACK_SIGNING_SECRET does not exists and must be provided")
@@ -44,7 +43,7 @@ func initApplication(e *echo.Echo, slackBlockChan chan []slack.Block) (string, *
 
 	slackClient := slack.New(config.SLACK_API_TOKEN, slack.OptionDebug(true), slack.OptionLog(log.Default()))
 
-	scheduler, _, err := simba.InitScheduler(dbClient, slackClient, config, []slack.Block{}, slackBlockChan)
+	scheduler, _, err := simba.InitScheduler(dbClient, slackClient, config, threadTS)
 	if err != nil {
 		err = fmt.Errorf("failed initScheduler: %s", err.Error())
 		return slackSigningSecret, nil, nil, nil, nil, err
@@ -57,35 +56,22 @@ func watchValueChanged(valueToChange *string, channel chan string, logger echo.L
 		oldValue := *valueToChange
 		val := <-channel
 		*valueToChange = val
-		logger.Printf("Changed slackTS from %s to %s", oldValue, *valueToChange)
+		logger.Infof("Changed slackTS from %s to %s", oldValue, *valueToChange)
 	}
 }
 
-func watchPreviousBlockChanged(slackBlockChan chan []slack.Block, valueToChange *[]slack.Block, logger echo.Logger) {
-	for {
-		val := <-slackBlockChan
-		*valueToChange = val
-		logger.Printf("Changed previousBlock")
-	}
-}
-
-func handleUpdateMood(config *simba.Config, slackClient *slack.Client, dbClient *gorm.DB, threadTS, channelId, userId, username string, action *slack.BlockAction, previousBlock []slack.Block) error {
-	if err := simba.HandleAddDailyMood(dbClient, channelId, userId, username, action.Value, ""); err != nil {
-		return err
-	} else {
-
-		threadTS, err := simba.UpdateMessage(slackClient, config, dbClient, threadTS, previousBlock, false)
-		if err != nil {
-			return err
-		}
-
-		log.Printf("Mood %s has been added for the daily for %s", action.Value, username)
-		slackMessage := fmt.Sprintf("<@%s> has responded to the daily message with %s", userId, strings.ReplaceAll(action.Value, "_", " "))
-		simba.SendSlackTSMessage(slackClient, config, slackMessage, threadTS)
-		slackClient.AddReaction("robot_face", slack.ItemRef{Timestamp: threadTS, Channel: channelId})
-		return nil
-	}
-}
+// func handleUpdateMood(config *simba.Config, slackClient *slack.Client, dbClient *gorm.DB, threadTS, channelId, userId, username string, action *slack.BlockAction, previousBlock []slack.Block) error {
+// 	if _, err := simba.HandleAddDailyMood(dbClient, slackClient, channelId, userId, username, action.Value, threadTS); err != nil {
+// 		log.Printf("Error HandleAddDailyMood = %s", err.Error())
+// 		return err
+// 	} else {
+// 		log.Printf("Mood %s has been added for the daily for %s", action.Value, username)
+// 		slackMessage := fmt.Sprintf("<@%s> has responded to the daily message with %s", userId, strings.ReplaceAll(action.Value, "_", " "))
+// 		simba.SendSlackTSMessage(slackClient, config, slackMessage, threadTS)
+// 		slackClient.AddReaction("robot_face", slack.ItemRef{Timestamp: threadTS, Channel: channelId})
+// 		return nil
+// 	}
+// }
 
 func handleSendKindMessage(slackClient *slack.Client, userId string, action *slack.BlockAction) error {
 	log.Printf("Warning this has to be handled by another thing (blockId:%s, value:%s)", action.ActionID, action.Value)

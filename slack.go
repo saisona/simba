@@ -26,6 +26,24 @@ func slackTextObject(text string) slack.MsgOption {
 	return slack.MsgOptionText(text, false)
 }
 
+func slackMkDownBlock(text string) *slack.TextBlockObject {
+	textObject := slack.NewTextBlockObject(slack.MarkdownType, text, false, false)
+	if err := textObject.Validate(); err != nil {
+		log.Printf("Validation failed for %s", text)
+		panic(err)
+	}
+	return textObject
+}
+
+func slackTextBlock(text string) *slack.TextBlockObject {
+	textObject := slack.NewTextBlockObject(slack.PlainTextType, text, true, false)
+	if err := textObject.Validate(); err != nil {
+		log.Printf("Validation failed for %s", text)
+		panic(err)
+	}
+	return textObject
+}
+
 func SendImage(client *slack.Client, channelId, filePath, title, comment string) error {
 	if fileInfo, err := os.Stat(filePath); errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("file %s does not exists", filePath)
@@ -103,49 +121,9 @@ func firstSectionBlock() (string, *slack.SectionBlock) {
 		log.Printf("Failed fetch Quote of the Day = %s", err.Error())
 	}
 	quoteOfTheDay := fmt.Sprintf("Hey folks! What is your mood today:\nQuote of the Day: *%s*", qotd)
-	firstLine := slack.NewTextBlockObject("mrkdwn", quoteOfTheDay, false, false)
+	firstLine := slackMkDownBlock(quoteOfTheDay)
 	sectionBlock := slack.NewSectionBlock(firstLine, nil, nil)
 	return author, sectionBlock
-}
-
-func secondSectionBlock(dbClient *gorm.DB, channelId string) *slack.SectionBlock {
-	user, mood, err := FetchLastPersonInBadMood(dbClient, channelId)
-	if err != nil {
-		log.Printf("FetchLastPersonInBadMood failed: %s", err.Error())
-		user = &User{Username: "John Snow"}
-		mood = &DailyMood{Mood: "I know nothing"}
-	}
-
-	var badMoodText string
-	if mood.Context == "" {
-		badMoodText = fmt.Sprintf("*Last co-worker in %s:*\n%s", strings.ReplaceAll(mood.Mood, "_", " "), user.Username)
-	} else {
-		badMoodText = fmt.Sprintf("*Last co-worker in %s:*\n%s (context: %s)", strings.ReplaceAll(mood.Mood, "_", " "), user.Username, mood.Context)
-	}
-	secondSectionFirstBlock := slack.NewTextBlockObject(slack.MarkdownType, badMoodText, false, false)
-	if secondSectionFirstBlock.Validate() != nil {
-		log.Printf("WARNING FAILED %s", secondSectionFirstBlock.Validate().Error())
-		return nil
-	}
-
-	lastBadMoodDay := mood.CreatedAt.Format(time.ANSIC)
-	secondSectionSecondBlock := slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*When:*\n%s", lastBadMoodDay), false, false)
-	if secondSectionSecondBlock.Validate() != nil {
-		log.Printf("WARNING FAILED %s", secondSectionFirstBlock.Validate().Error())
-		return nil
-	}
-
-	buttonText := slack.NewTextBlockObject(slack.PlainTextType, "Send kind message :heart:", true, false)
-
-	buttonBlockId := fmt.Sprintf("send_kind_message_%d", time.Now().UnixMilli())
-
-	buttonAccessory := slack.NewButtonBlockElement(buttonBlockId, user.SlackUserID, buttonText)
-	buttonAccessory.Style = slack.StyleDanger
-	secondSectionAccessory := slack.NewAccessory(buttonAccessory)
-
-	textFields := []*slack.TextBlockObject{secondSectionFirstBlock, secondSectionSecondBlock}
-
-	return slack.NewSectionBlock(nil, textFields, secondSectionAccessory)
 }
 
 func FetchUserById(slackClient *slack.Client, userId string) (*slack.User, error) {
@@ -183,51 +161,99 @@ func actionSectionBlock() *slack.ActionBlock {
 	return slack.NewActionBlock(actionBlockId, goodMoodButton, averageMoodButton, badMoodButton)
 }
 
-func fromJsonToBlocks(dbClient *gorm.DB, channelId string, previousBlock []slack.Block, firstPrint bool, slackBlocksChan chan []slack.Block) slack.Message {
-	var blockMessage slack.Message = slack.NewBlockMessage(previousBlock...)
-	if len(previousBlock) < 1 {
-		authorName, slackFirstSection := firstSectionBlock()
-		contextBlock := AddingContextAuthor(authorName)
-		slackSecondSection := secondSectionBlock(dbClient, channelId)
-		actions := actionSectionBlock()
-		blockMessage.Blocks.BlockSet = append(blockMessage.Blocks.BlockSet, slackFirstSection, contextBlock, slackSecondSection, actions)
+func fromJsonToBlocks(dbClient *gorm.DB, channelId, threadTS string, firstPrint bool) slack.Message {
+	var blockMessage slack.Message = slack.NewBlockMessage()
+	authorName, slackFirstSection := firstSectionBlock()
+	contextBlock := AddingContextAuthor(authorName)
+	actions := actionSectionBlock()
+	blockMessage.Blocks.BlockSet = append(blockMessage.Blocks.BlockSet, slackFirstSection, contextBlock, actions)
+	if !firstPrint {
+		blockMessage.Blocks.BlockSet = append(blockMessage.Blocks.BlockSet, slack.NewDividerBlock())
+		userWithDailyMoods, err := FetchAllDailyMoodsByThreadTS(dbClient, threadTS)
+		if err != nil {
+			panic(err)
+		}
+		blockMessageArray := []slack.Block{}
+		for _, u := range userWithDailyMoods {
+			if len(u.Moods) == 0 {
+				continue
+			}
+			firstField := slackTextBlock(u.Username)
+			if firstField.Validate() != nil {
+				panic(err)
+			}
+			userMood := u.Moods[0].Mood
+			userFeeling := u.Moods[0].Feeling
+			fields := []*slack.TextBlockObject{firstField}
+			if userFeeling != "" {
+				secondField := slackTextBlock(fmt.Sprintf("%s %s %s", fromMoodToSmiley(userMood), fromFeelingToSmiley(userFeeling), userFeeling))
+				if secondField.Validate() != nil {
+					panic(err)
+				}
+
+				fields = append(fields, secondField)
+			} else {
+				secondField := slackTextBlock(fmt.Sprintf("%s %s", fromMoodToSmiley(userMood), strings.ToUpper(strings.ReplaceAll(userMood, "_", " "))))
+				if secondField.Validate() != nil {
+					panic(err)
+				}
+
+				fields = append(fields, secondField)
+			}
+			section := slack.NewSectionBlock(nil, fields, nil)
+			blockMessageArray = append(blockMessageArray, section)
+
+			if u.Moods[0].Context != "" {
+				context := slack.NewContextBlock(fmt.Sprintf("context_%d", u.ID), slackMkDownBlock(fmt.Sprintf("_%s_", u.Moods[0].Context)))
+				blockMessageArray = append(blockMessageArray, context)
+			}
+		}
+
+		log.Printf("Before adding len = %d", len(blockMessage.Blocks.BlockSet))
+		blockMessage.Blocks.BlockSet = append(blockMessage.Blocks.BlockSet, blockMessageArray...)
+		log.Printf("After adding len = %d", len(blockMessage.Blocks.BlockSet))
 	}
-
-	inputBlock := ContextInputText()
-
-	actionId := fmt.Sprintf("mood_ctxt_cancel_%d", time.Now().UnixMilli())
-	blockId := fmt.Sprintf("block_mood_ctxt_cancel_%d", time.Now().UnixMilli())
-	buttonBlock := slack.NewButtonBlockElement(actionId, "cancel_"+channelId, slack.NewTextBlockObject(slack.PlainTextType, "Cancel", false, false))
-	buttonBlock.WithStyle(slack.StyleDefault)
-	actionBlock := slack.NewActionBlock(blockId, buttonBlock)
-
-	blockMessage.Blocks.BlockSet = append(blockMessage.Blocks.BlockSet, slack.NewDividerBlock())
-	blockMessage.Blocks.BlockSet = append(blockMessage.Blocks.BlockSet, inputBlock)
-	blockMessage.Blocks.BlockSet = append(blockMessage.Blocks.BlockSet, actionBlock)
-
-	slackBlocksChan <- blockMessage.Blocks.BlockSet
-
 	return blockMessage
 }
 
+func fromMoodToSmiley(mood string) string {
+	switch mood {
+	case "good_mood":
+		return ":heart:"
+	case "average_mood":
+		return ":yellow_heart:"
+	case "bad_mood":
+		return ":black_heart:"
+	default:
+		return ":meow:"
+	}
+}
+
+func fromFeelingToSmiley(feeling string) string {
+	switch feeling {
+	default:
+		return ""
+	}
+}
+
 func ContextInputText() *slack.InputBlock {
-	blockId := fmt.Sprintf("bloc_mood_ctxt_%d", time.Now().UnixMilli())
-	actionId := fmt.Sprintf("mood_ctxt_%d", time.Now().UnixMilli())
+	blockId := "MoodContext"
+	actionId := "mood_ctxt"
 
 	//If does not work use true as emoji
-	inputBlockElem := slack.NewPlainTextInputBlockElement(slack.NewTextBlockObject(slack.PlainTextType, "Add Context", true, false), actionId)
-	inputBlock := slack.NewInputBlock(blockId, slack.NewTextBlockObject(slack.PlainTextType, "Context", true, false), inputBlockElem)
+	inputBlockElem := slack.NewPlainTextInputBlockElement(slackTextBlock("Context"), actionId)
+	inputBlock := slack.NewInputBlock(blockId, slackTextBlock("Context"), inputBlockElem)
 
 	//Modifiers
 	inputBlock.DispatchAction = false
 	inputBlock.Optional = true
-	inputBlock.Hint = slack.NewTextBlockObject(slack.PlainTextType, "Optionnal: enter some context", true, false)
+	inputBlock.Hint = slack.NewTextBlockObject(slack.PlainTextType, "To add a bit of context", true, false)
 
 	return inputBlock
 }
 
-func SendSlackBlocks(client *slack.Client, config *Config, dbClient *gorm.DB, previousBlocks []slack.Block, firstPrint bool, slackBlockChan chan []slack.Block) (string, error) {
-	blockMessage := fromJsonToBlocks(dbClient, config.CHANNEL_ID, previousBlocks, firstPrint, slackBlockChan)
+func SendSlackBlocks(client *slack.Client, config *Config, dbClient *gorm.DB, threadTS string, firstPrint bool) (string, error) {
+	blockMessage := fromJsonToBlocks(dbClient, config.CHANNEL_ID, threadTS, firstPrint)
 	_, threadTS, err := client.PostMessage(config.CHANNEL_ID, slack.MsgOptionBlocks(blockMessage.Blocks.BlockSet...))
 	if err != nil {
 		return "", err
@@ -235,9 +261,8 @@ func SendSlackBlocks(client *slack.Client, config *Config, dbClient *gorm.DB, pr
 	return threadTS, nil
 }
 
-func UpdateMessage(client *slack.Client, config *Config, dbClient *gorm.DB, threadTS string, previousBlock []slack.Block, firstPrint bool) (string, error) {
-	var slackMessage slack.Message
-	slackMessage = fromJsonToBlocks(dbClient, config.CHANNEL_ID, previousBlock, firstPrint, config.SLACK_PREVIOUS_BLOCK)
+func UpdateMessage(client *slack.Client, config *Config, dbClient *gorm.DB, threadTS string, firstPrint bool) (string, error) {
+	slackMessage := fromJsonToBlocks(dbClient, config.CHANNEL_ID, threadTS, firstPrint)
 	_, newThreadTS, _, err := client.UpdateMessage(config.CHANNEL_ID, threadTS, slack.MsgOptionBlocks(slackMessage.Blocks.BlockSet...))
 	if err != nil {
 		return threadTS, err

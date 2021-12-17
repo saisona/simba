@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/saisona/simba"
 	"github.com/slack-go/slack"
@@ -27,9 +26,9 @@ func slackTextBlock(text string) *slack.TextBlockObject {
 	return textObject
 }
 
-func viewAppModalMood(userId, username, mood string) slack.ModalViewRequest {
+func viewAppModalMood(userId, username, mood string, dailyMoodId uint) slack.ModalViewRequest {
 
-	blockActionId := fmt.Sprintf("mood_feeling_%s_%d", userId, time.Now().UnixMilli())
+	blockActionId := "MoodFeeling"
 	var feelingButtonList []slack.BlockElement
 
 	switch mood {
@@ -60,12 +59,13 @@ func viewAppModalMood(userId, username, mood string) slack.ModalViewRequest {
 	slackBlocks := slack.Blocks{BlockSet: blockSet}
 
 	return slack.ModalViewRequest{
-		Type:         slack.VTModal,
-		Blocks:       slackBlocks,
-		Title:        slackTextBlock("What's your mood"),
-		Close:        slackTextBlock("Cancel"),
-		Submit:       slackTextBlock("Share"),
-		CallbackID:   fmt.Sprintf("mood_modal_sharing"),
-		ClearOnClose: true,
+		Type:            slack.VTModal,
+		Blocks:          slackBlocks,
+		Title:           slackTextBlock("What's your mood"),
+		Close:           slackTextBlock("Cancel"),
+		Submit:          slackTextBlock("Share"),
+		CallbackID:      "mood_modal_sharing",
+		PrivateMetadata: fmt.Sprintf("daily_mood_id::%d", dailyMoodId),
+		ClearOnClose:    true,
 	}
 }

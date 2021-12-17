@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"github.com/joho/godotenv"
-	"github.com/slack-go/slack"
 )
 
 func InitConfig() (*Config, error) {
@@ -24,8 +23,6 @@ func InitConfig() (*Config, error) {
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		log.Printf(".env does not exists")
 	}
 
 	chanId := os.Getenv("CHANNEL_ID")
@@ -59,8 +56,7 @@ func InitConfig() (*Config, error) {
 	}
 
 	slackMessageChannel := make(chan string)
-	slackBlockChan := make(chan []slack.Block)
-	return &Config{CHANNEL_ID: chanId, SLACK_API_TOKEN: slackApiToken, APP_PORT: applicationPort, CRON_EXPRESSION: cronExpression, DB: dbConfig, SLACK_MESSAGE_CHANNEL: slackMessageChannel, SLACK_PREVIOUS_BLOCK: slackBlockChan}, nil
+	return &Config{CHANNEL_ID: chanId, SLACK_API_TOKEN: slackApiToken, APP_PORT: applicationPort, CRON_EXPRESSION: cronExpression, DB: dbConfig, SLACK_MESSAGE_CHANNEL: slackMessageChannel}, nil
 }
 
 func initDbConfig() (*DbConfig, error) {
@@ -96,7 +92,6 @@ type Config struct {
 	APP_PORT              string
 	CRON_EXPRESSION       string
 	SLACK_MESSAGE_CHANNEL chan string
-	SLACK_PREVIOUS_BLOCK  chan []slack.Block
 	DB                    *DbConfig
 }
 
