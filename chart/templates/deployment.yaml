@@ -43,10 +43,12 @@ spec:
               containerPort: {{ .Values.app.port }}
               protocol: TCP
           livenessProbe:
+            periodSeconds: 5
             httpGet:
               path: /healthz
               port: app
           readinessProbe:
+            periodSeconds: 60
             httpGet:
               path: /healthz
               port: app
@@ -87,4 +89,5 @@ spec:
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
+
       {{- end }}

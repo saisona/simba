@@ -11,42 +11,52 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
 
-func InitConfig() (*Config, error) {
-	if _, err := os.Open(".env"); err == nil {
+func InitConfig(isTesting bool) (*Config, error) {
+	if _, err := os.Open(".env"); !isTesting && err == nil {
 		os.Clearenv()
 		err := godotenv.Load()
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		log.Printf(".env does not exists")
 	}
+
 	chanId := os.Getenv("CHANNEL_ID")
 	slackApiToken := os.Getenv("SLACK_API_TOKEN")
 	applicationPort := os.Getenv("APP_PORT")
 
-	cronExpression := os.Getenv("APP_CRON_EXPRESSION")
-	if cronExpression == "" {
+	missingEnv := []string{}
+
+	switch {
+	case chanId == "":
+		missingEnv = append(missingEnv, "CHANNEL_ID")
+	case slackApiToken == "":
+		missingEnv = append(missingEnv, "SLACK_API_TOKEN")
+	case applicationPort == "":
+		missingEnv = append(missingEnv, "APP_PORT")
+	}
+
+	if len(missingEnv) > 0 {
+		return nil, fmt.Errorf("%s is not set", strings.Join(missingEnv, " "))
+	}
+
+	cronExpression, cronExists := os.LookupEnv("APP_CRON_EXPRESSION")
+	if !cronExists || cronExpression == "" {
 		cronExpression = "0 0 10 ? * MON-FRI"
 		log.Printf("APP_CRON_EXPRESSION has not been set in env ! Using default one : %s", cronExpression)
 	}
 
-	if chanId == "" || slackApiToken == "" {
-		log.Fatalf("One of CHANNEL_ID or SLACK_API_TOKEN (%s, %s)", chanId, slackApiToken)
-	}
-
 	dbConfig, err := initDbConfig()
 	if err != nil {
-		log.Fatalf("initDbConfig failed : %s", err.Error())
+		return nil, fmt.Errorf("initDbConfig failed : %s", err.Error())
 	}
 
 	slackMessageChannel := make(chan string)
-	badMoodUser := make(chan *User)
-	return &Config{CHANNEL_ID: chanId, SLACK_API_TOKEN: slackApiToken, APP_PORT: applicationPort, CRON_EXPRESSION: cronExpression, DB: dbConfig, SLACK_MESSAGE_CHANNEL: slackMessageChannel, LAST_BAD_MOOD_USER: badMoodUser}, nil
+	return &Config{CHANNEL_ID: chanId, SLACK_API_TOKEN: slackApiToken, APP_PORT: applicationPort, CRON_EXPRESSION: cronExpression, DB: dbConfig, SLACK_MESSAGE_CHANNEL: slackMessageChannel}, nil
 }
 
 func initDbConfig() (*DbConfig, error) {
@@ -55,8 +65,21 @@ func initDbConfig() (*DbConfig, error) {
 	host := os.Getenv("DB_HOST")
 	name := os.Getenv("DB_NAME")
 
-	if user == "" || password == "" || host == "" || name == "" {
-		return nil, fmt.Errorf("One of DB_USER(%s), DB_PASSWORD(%s), DB_HOST(%s), DB_NAME(%s) is not set", user, password, host, name)
+	missingEnv := []string{}
+	switch {
+	case user == "":
+		missingEnv = append(missingEnv, "DB_USER")
+	case password == "":
+		missingEnv = append(missingEnv, "DB_PASSWORD")
+	case host == "":
+		missingEnv = append(missingEnv, "DB_HOST")
+	case name == "":
+		missingEnv = append(missingEnv, "DB_NAME")
+	}
+
+	if len(missingEnv) > 0 {
+		err := fmt.Errorf("%s is not set", strings.Join(missingEnv, " "))
+		return nil, err
 	}
 
 	return &DbConfig{Username: user, Password: password, Host: host, Name: name}, nil
@@ -69,7 +92,6 @@ type Config struct {
 	APP_PORT              string
 	CRON_EXPRESSION       string
 	SLACK_MESSAGE_CHANNEL chan string
-	LAST_BAD_MOOD_USER    chan *User
 	DB                    *DbConfig
 }
 
