@@ -20,7 +20,7 @@ func handleMigration(e *echo.Echo) bool {
 
 	if exists && hasMigrationStr != "" {
 		if hasMigration, err = strconv.ParseBool(hasMigrationStr); err != nil {
-			e.Logger.Warnf("APP_MIGRATE(%s) has been set but cannot be converted to bool : %s ", hasMigrationStr, err.Error())
+			e.Logger.Printf("APP_MIGRATE(%s) has been set but cannot be converted to bool : %s ", hasMigrationStr, err.Error())
 			return false
 		}
 	}
@@ -56,25 +56,11 @@ func watchValueChanged(valueToChange *string, channel chan string, logger echo.L
 		oldValue := *valueToChange
 		val := <-channel
 		*valueToChange = val
-		logger.Infof("Changed slackTS from %s to %s", oldValue, *valueToChange)
+		logger.Printf("Changed slackTS from %s to %s", oldValue, *valueToChange)
 	}
 }
 
-// func handleUpdateMood(config *simba.Config, slackClient *slack.Client, dbClient *gorm.DB, threadTS, channelId, userId, username string, action *slack.BlockAction, previousBlock []slack.Block) error {
-// 	if _, err := simba.HandleAddDailyMood(dbClient, slackClient, channelId, userId, username, action.Value, threadTS); err != nil {
-// 		log.Printf("Error HandleAddDailyMood = %s", err.Error())
-// 		return err
-// 	} else {
-// 		log.Printf("Mood %s has been added for the daily for %s", action.Value, username)
-// 		slackMessage := fmt.Sprintf("<@%s> has responded to the daily message with %s", userId, strings.ReplaceAll(action.Value, "_", " "))
-// 		simba.SendSlackTSMessage(slackClient, config, slackMessage, threadTS)
-// 		slackClient.AddReaction("robot_face", slack.ItemRef{Timestamp: threadTS, Channel: channelId})
-// 		return nil
-// 	}
-// }
-
 func handleSendKindMessage(slackClient *slack.Client, userId string, action *slack.BlockAction) error {
-	log.Printf("Warning this has to be handled by another thing (blockId:%s, value:%s)", action.ActionID, action.Value)
 	privateChannel, _, _, err := slackClient.OpenConversation(&slack.OpenConversationParameters{Users: []string{action.Value}})
 	if err != nil {
 		return err

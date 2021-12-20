@@ -155,7 +155,7 @@ func HasAlreadySetMood(dbClient *gorm.DB, slackClient *slack.Client, userID, thr
 
 func FetchMoodFromThreadTS(dbClient *gorm.DB, threadTS string, userId uint) (*DailyMood, error) {
 	var moodToFind DailyMood
-	if tx := dbClient.Debug().Find(&moodToFind, "thread_ts = ? AND user_id = ? ", threadTS, userId); tx.Error != nil {
+	if tx := dbClient.Find(&moodToFind, "thread_ts = ? AND user_id = ? ", threadTS, userId); tx.Error != nil {
 		return nil, tx.Error
 	}
 

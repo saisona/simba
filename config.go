@@ -16,8 +16,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
-func InitConfig() (*Config, error) {
-	if _, err := os.Open(".env"); err == nil {
+func InitConfig(isTesting bool) (*Config, error) {
+	if _, err := os.Open(".env"); !isTesting && err == nil {
 		os.Clearenv()
 		err := godotenv.Load()
 		if err != nil {
