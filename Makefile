@@ -8,12 +8,11 @@
 init:
 	go build cmd/*.go  
 
-
 test: 
 	go test -test.v -test.shuffle on -test.failfast -timeout 10s -cover -coverprofile=prof.out
 
 coverage: test
 	go tool cover -html=prof.out
 
-
-.PHONY: init test coverage
+run:
+	go run cmd/*.go
