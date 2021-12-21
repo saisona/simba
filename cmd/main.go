@@ -9,8 +9,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -50,8 +54,21 @@ func main() {
 
 	defer close(config.SLACK_MESSAGE_CHANNEL)
 	port := fmt.Sprintf(":%s", config.APP_PORT)
-	if err := e.Start(port); err != nil {
-		e.Logger.Fatalf("Error when launching server : %s", err.Error())
-		return
+	go func() {
+		if err := e.Start(port); err != nil {
+			e.Logger.Fatalf("Error when launching server : %s", err.Error())
+			return
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server with a timeout of 10 seconds.
+	// Use a buffered channel to avoid missing signals as recommended for signal.Notify
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt)
+	<-quit
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := e.Shutdown(ctx); err != nil {
+		e.Logger.Fatal(err)
 	}
 }
