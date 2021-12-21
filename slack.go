@@ -171,6 +171,7 @@ func drawResults(userWithDailyMoods []*User) []slack.Block {
 		if firstField.Validate() != nil {
 			panic(firstField.Validate())
 		}
+
 		userMood := u.Moods[0].Mood
 		userFeeling := u.Moods[0].Feeling
 		fields := []*slack.TextBlockObject{firstField}
@@ -219,9 +220,7 @@ func fromJsonToBlocks(dbClient *gorm.DB, channelId, threadTS string, firstPrint 
 
 		blockMessageArray := drawResults(userWithDailyMoods)
 
-		log.Printf("Before adding len = %d", len(blockMessage.Blocks.BlockSet))
 		blockMessage.Blocks.BlockSet = append(blockMessage.Blocks.BlockSet, blockMessageArray...)
-		log.Printf("After adding len = %d", len(blockMessage.Blocks.BlockSet))
 	}
 	return blockMessage
 }
