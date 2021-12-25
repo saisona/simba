@@ -34,7 +34,7 @@ func initApplication(e *echo.Echo, threadTS string) (string, *simba.Config, *gor
 		return "", nil, nil, nil, nil, err
 	}
 
-	config, err := simba.InitConfig()
+	config, err := simba.InitConfig(false)
 	if err != nil {
 		err = fmt.Errorf("failed initConfig: %s", err.Error())
 		return slackSigningSecret, nil, nil, nil, nil, err

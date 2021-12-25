@@ -161,30 +161,31 @@ func actionSectionBlock() *slack.ActionBlock {
 	return slack.NewActionBlock(actionBlockId, goodMoodButton, averageMoodButton, badMoodButton)
 }
 
-func drawResults(userWithDailyMoods []*User) []slack.Block {
+func drawResults(userWithDailyMoods []*User) ([]slack.Block, error) {
 	blockMessageArray := []slack.Block{}
-	for idx, u := range userWithDailyMoods {
+	for _, u := range userWithDailyMoods {
 		if len(u.Moods) == 0 {
 			continue
 		}
 		firstField := slackTextBlock(u.Username)
 		if firstField.Validate() != nil {
-			panic(firstField.Validate())
+			return blockMessageArray, fmt.Errorf("#drawResults::firstField = %s", firstField.Validate().Error())
 		}
+
 		userMood := u.Moods[0].Mood
 		userFeeling := u.Moods[0].Feeling
 		fields := []*slack.TextBlockObject{firstField}
 		if userFeeling != "" {
 			secondField := slackTextBlock(fmt.Sprintf("%s %s %s", fromMoodToSmiley(userMood), fromFeelingToSmiley(userFeeling), userFeeling))
 			if secondField.Validate() != nil {
-				panic(secondField.Validate())
+				return blockMessageArray, fmt.Errorf("#drawResults::second has no feeling= %s", secondField.Validate().Error())
 			}
 
 			fields = append(fields, secondField)
 		} else {
 			secondField := slackTextBlock(fmt.Sprintf("%s %s", fromMoodToSmiley(userMood), strings.ToUpper(strings.ReplaceAll(userMood, "_", " "))))
 			if secondField.Validate() != nil {
-				panic(secondField.Validate())
+				return blockMessageArray, fmt.Errorf("#drawResults::second hasFeeling= %s", secondField.Validate().Error())
 			}
 
 			fields = append(fields, secondField)
@@ -193,15 +194,16 @@ func drawResults(userWithDailyMoods []*User) []slack.Block {
 		blockMessageArray = append(blockMessageArray, section)
 
 		if u.Moods[0].Context != "" {
-			context := slack.NewContextBlock(fmt.Sprintf("context_%d", u.ID), slackTextBlock(u.Moods[0].Context))
+			moodContext := slackTextBlock(u.Moods[0].Context)
+			if moodContext.Validate() != nil {
+				return blockMessageArray, fmt.Errorf("#drawResults::moodContext = %s", moodContext.Validate().Error())
+			}
+			context := slack.NewContextBlock(fmt.Sprintf("context_%d", u.ID), moodContext)
 			blockMessageArray = append(blockMessageArray, context)
 		}
 
-		if idx+1 < len(userWithDailyMoods) {
-			blockMessageArray = append(blockMessageArray, slack.NewSectionBlock(slackTextBlock(" "), nil, nil))
-		}
 	}
-	return blockMessageArray
+	return blockMessageArray, nil
 }
 
 func fromJsonToBlocks(dbClient *gorm.DB, channelId, threadTS string, firstPrint bool) slack.Message {
@@ -217,11 +219,13 @@ func fromJsonToBlocks(dbClient *gorm.DB, channelId, threadTS string, firstPrint 
 			panic(err)
 		}
 
-		blockMessageArray := drawResults(userWithDailyMoods)
+		blockMessageArray, err := drawResults(userWithDailyMoods)
+		if err != nil {
+			log.Printf("[ERROR] drawResults : %s", err.Error())
+			panic(err)
+		}
 
-		log.Printf("Before adding len = %d", len(blockMessage.Blocks.BlockSet))
 		blockMessage.Blocks.BlockSet = append(blockMessage.Blocks.BlockSet, blockMessageArray...)
-		log.Printf("After adding len = %d", len(blockMessage.Blocks.BlockSet))
 	}
 	return blockMessage
 }
