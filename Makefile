@@ -16,3 +16,5 @@ coverage: test
 
 run:
 	go run cmd/*.go
+
+.PHONY: init test coverage run
