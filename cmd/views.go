@@ -27,7 +27,6 @@ func slackTextBlock(text string) *slack.TextBlockObject {
 }
 
 func viewAppModalMood(userId, username, mood string, dailyMoodId uint) slack.ModalViewRequest {
-
 	blockActionId := "MoodFeeling"
 	var feelingButtonList []slack.BlockElement
 

@@ -96,7 +96,7 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 			if err != nil {
 				return err
 			}
-			threadTS, err := simba.UpdateMessage(slackClient, config, dbClient, threadTS, false)
+			threadTS, err := simba.UpdateMessage(slackClient, config, dbClient, threadTS)
 			if err != nil {
 				return err
 			}
@@ -137,7 +137,7 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 					return err
 				}
 
-				threadTS, err := simba.UpdateMessage(slackClient, config, dbClient, threadTS, false)
+				threadTS, err := simba.UpdateMessage(slackClient, config, dbClient, threadTS)
 				if err != nil {
 					return err
 				}
@@ -156,7 +156,7 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 					c.Logger().Errorf("MetadataError %v", viewResponse.ResponseMetadata.Messages)
 				}
 
-				threadTS, err := simba.UpdateMessage(slackClient, config, dbClient, threadTS, false)
+				threadTS, err := simba.UpdateMessage(slackClient, config, dbClient, threadTS)
 				if err != nil {
 					return err
 				}

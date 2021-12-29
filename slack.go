@@ -190,6 +190,7 @@ func drawResults(userWithDailyMoods []*User) ([]slack.Block, error) {
 
 			fields = append(fields, secondField)
 		}
+
 		section := slack.NewSectionBlock(nil, fields, nil)
 		blockMessageArray = append(blockMessageArray, section)
 
@@ -293,8 +294,8 @@ func SendSlackBlocks(client *slack.Client, config *Config, dbClient *gorm.DB, th
 	return threadTS, nil
 }
 
-func UpdateMessage(client *slack.Client, config *Config, dbClient *gorm.DB, threadTS string, firstPrint bool) (string, error) {
-	slackMessage := fromJsonToBlocks(dbClient, config.CHANNEL_ID, threadTS, firstPrint)
+func UpdateMessage(client *slack.Client, config *Config, dbClient *gorm.DB, threadTS string) (string, error) {
+	slackMessage := fromJsonToBlocks(dbClient, config.CHANNEL_ID, threadTS, false)
 	_, newThreadTS, _, err := client.UpdateMessage(config.CHANNEL_ID, threadTS, slack.MsgOptionBlocks(slackMessage.Blocks.BlockSet...))
 	if err != nil {
 		return threadTS, err
