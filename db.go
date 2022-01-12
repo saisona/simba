@@ -18,8 +18,8 @@ import (
 	"gorm.io/gorm"
 )
 
+// create database foreign key for user & credit_cards
 func handleMigration(db *gorm.DB) error {
-	// create database foreign key for user & credit_cards
 
 	if err := db.AutoMigrate(&User{}); err != nil {
 		return err
@@ -40,6 +40,9 @@ func handleMigration(db *gorm.DB) error {
 	return nil
 }
 
+// Initialize database client (*gorm.DB)
+//--------------------------------------
+// @args
 func InitDbClient(dbHost, dbUser, dbPassword, dbName string, migrate bool) *gorm.DB {
 	connectionString := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=5432 sslmode=disable TimeZone=Europe/Paris", dbHost, dbUser, dbPassword, dbName)
 	gormConfig := &gorm.Config{
@@ -80,7 +83,7 @@ func UpdateMood(dbClient *gorm.DB, sourceMood *DailyMood, feeling *string, conte
 
 func UpdateMoodById(dbClient *gorm.DB, moodId string, feeling *string, context *string) (*DailyMood, error) {
 	var sourceMood DailyMood
-	if tx := dbClient.Debug().First(&sourceMood, "id = ? ", moodId); tx.Error != nil {
+	if tx := dbClient.First(&sourceMood, "id = ? ", moodId); tx.Error != nil {
 		return &sourceMood, tx.Error
 	}
 
@@ -108,7 +111,7 @@ func UpdateMoodById(dbClient *gorm.DB, moodId string, feeling *string, context *
 func HandleAddDailyMood(dbClient *gorm.DB, slackClient *slack.Client, channelId, userId, userName, mood, threadTS string) (*DailyMood, error) {
 	var foundUser User = User{SlackUserID: userId, SlackChannelId: channelId, Username: userName}
 
-	tx := dbClient.FirstOrInit(&foundUser, "username = ?", foundUser.Username)
+	tx := dbClient.FirstOrInit(&foundUser, "slack_user_id = ?", foundUser.SlackUserID)
 	if tx.Error != nil {
 		return nil, fmt.Errorf("firstOrInit: %s", tx.Error)
 	} else if foundUser.ID != 0 {
@@ -116,7 +119,6 @@ func HandleAddDailyMood(dbClient *gorm.DB, slackClient *slack.Client, channelId,
 			log.Printf("Error hasAlreadySetMood : %s", err.Error())
 			return nil, err
 		} else if hasAlreadySetMood {
-			log.Printf("WARNING : hasAlreadySetMood")
 			return nil, NewErrMoodAlreadySet(userId)
 		}
 	} else {
@@ -132,7 +134,7 @@ func HandleAddDailyMood(dbClient *gorm.DB, slackClient *slack.Client, channelId,
 	tx = dbClient.Debug().Session(&gorm.Session{FullSaveAssociations: true}).Updates(&foundUser)
 	if tx.Error != nil {
 		return nil, fmt.Errorf("update with dailyMood: %s", tx.Error.Error())
-	} else if tx = dbClient.Debug().First(&moodToCreate, "user_id = ? AND thread_ts = ? ", foundUser.ID, threadTS); tx.Error != nil {
+	} else if tx = dbClient.First(&moodToCreate, "user_id = ? AND thread_ts = ? ", foundUser.ID, threadTS); tx.Error != nil {
 		return nil, fmt.Errorf("fetch real dailyMood failed : %s", tx.Error.Error())
 	}
 
