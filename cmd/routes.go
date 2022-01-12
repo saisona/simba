@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -96,7 +97,7 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 			if err != nil {
 				return err
 			}
-			threadTS, err := simba.UpdateMessage(slackClient, config, dbClient, threadTS, false)
+			threadTS, err := simba.UpdateMessage(slackClient, config, dbClient, threadTS)
 			if err != nil {
 				return err
 			}
@@ -116,8 +117,10 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 		if err != nil {
 			username = "John Snow"
 			c.Logger().Error("[ERROR] #getUserProfile => %s", err.Error())
-		} else {
+		} else if profile.DisplayName != "" {
 			username = profile.DisplayName
+		} else if profile.RealName != "" {
+			username = profile.RealName
 		}
 
 		for _, action := range blockActions {
@@ -125,28 +128,25 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 			switch {
 			case strings.Contains(action.ActionID, "mood_feeling_select"):
 				c.Logger().Printf("Clicked on button for mood_feeling_select with value = %s", action.Value)
-				simbaUser, _, err := simba.FechCurrent(dbClient, slackClient, userId)
-				if err != nil {
+
+				if simbaUser, _, err := simba.FechCurrent(dbClient, slackClient, userId); err != nil {
 					return err
-				}
-				dailyMood, err := simba.FetchMoodFromThreadTS(dbClient, threadTS, simbaUser.ID)
-				if err != nil {
+				} else if dailyMood, err := simba.FetchMoodFromThreadTS(dbClient, threadTS, simbaUser.ID); err != nil {
 					return err
-				}
-				if _, err := simba.UpdateMood(dbClient, dailyMood, &action.Value, nil); err != nil {
+				} else if _, err = simba.UpdateMood(dbClient, dailyMood, &action.Value, nil); err != nil {
 					return err
 				}
 
-				threadTS, err := simba.UpdateMessage(slackClient, config, dbClient, threadTS, false)
-				if err != nil {
-					return err
-				}
-				config.SLACK_MESSAGE_CHANNEL <- threadTS
+				go simba.UpdateMessage(slackClient, config, dbClient, threadTS)
 
 				return nil
 			case strings.Contains(action.ActionID, "mood_user"):
 				dailyMood, err := simba.HandleAddDailyMood(dbClient, slackClient, channelId, userId, username, action.Value, threadTS)
-				if err != nil {
+				if errors.Is(err, &simba.ErrMoodAlreadySet{}) {
+					if _, err := simba.SendSlackMessageToUser(slackClient, userId, "You already set your DailyMood, Sorry you are not allowed to modify it for the moment."); err != nil {
+						return err
+					}
+				} else if err != nil {
 					return err
 				}
 				viewModal := viewAppModalMood(userId, username, action.Value, dailyMood.ID)
@@ -156,13 +156,12 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 					c.Logger().Errorf("MetadataError %v", viewResponse.ResponseMetadata.Messages)
 				}
 
-				threadTS, err := simba.UpdateMessage(slackClient, config, dbClient, threadTS, false)
+				threadTS, err := simba.UpdateMessage(slackClient, config, dbClient, threadTS)
 				if err != nil {
 					return err
 				}
 				config.SLACK_MESSAGE_CHANNEL <- threadTS
 
-				c.Logger().Printf("privateMetadata=%s", viewResponse.PrivateMetadata)
 			case strings.Contains(action.ActionID, "send_kind_message"):
 				go handleSendKindMessage(slackClient, userId, action)
 			case strings.Contains(action.ActionID, "channel_selected"):

@@ -14,28 +14,21 @@ import (
 //@params user is a DB representation of a Simba user
 //@params [slackChannelId] is optionnal given if already known or not used for update
 //@returns Blocks to be send to update Simba Home view
-func handleAppHomeViewAdmin(user *simba.User, config *simba.Config, slackChannelId string) slack.Blocks {
+func handleAppHomeViewAdmin(user *simba.User, config *simba.Config, dbClient *gorm.DB, slackChannelId string) slack.Blocks {
 	basicText := slackTextBlock("Simba Application (Admin)")
 	slackHeaderBlock := slack.NewHeaderBlock(basicText)
-	slackChannelActionId := fmt.Sprintf("channel_selected_%s", user.SlackUserID)
-	slackChannelSelect := slack.NewOptionsSelectBlockElement(slack.OptTypeChannels, slackTextBlock("Selected Channel"), slackChannelActionId)
 
-	if slackChannelId == "" {
-		//TeamInfo
-		slackChannelSelect.InitialChannel = config.CHANNEL_ID
-	} else {
-		slackChannelSelect.InitialChannel = slackChannelId
-	}
-
-	slackSection := slack.NewSectionBlock(slackTextBlock("Select channel"), nil, slack.NewAccessory(slackChannelSelect))
-
-	blockSet := []slack.Block{slackHeaderBlock, slack.NewDividerBlock(), slackSection}
+	blockSet := []slack.Block{slackHeaderBlock, slack.NewDividerBlock()}
 
 	return slack.Blocks{
 		BlockSet: blockSet,
 	}
 }
 
+//@desc Render Home view not admin or update depending on slackChannelId is given or not
+//@params user is a DB representation of a Simba user
+//@params [slackChannelId] is optionnal given if already known or not used for update
+//@returns Blocks to be send to update Simba Home view
 func handleAppHomeViewNotAdmin(user *simba.User) slack.Blocks {
 	//Header
 	basicText := slackTextBlock("Simba Application (Not Admin)")
@@ -56,7 +49,7 @@ func handleAppHomeView(slackClient *slack.Client, dbClient *gorm.DB, config *sim
 	}
 	var blocks slack.Blocks
 	if user.IsManager || slackUser.IsAdmin {
-		blocks = handleAppHomeViewAdmin(user, config, "")
+		blocks = handleAppHomeViewAdmin(user, config, dbClient, "")
 	} else {
 		blocks = handleAppHomeViewNotAdmin(user)
 	}
@@ -79,13 +72,18 @@ func handleAppHomeViewUpdated(slackClient *slack.Client, dbClient *gorm.DB, conf
 		log.Printf("Error during OpenView to fetch Admin = %s", err.Error())
 		return slack.HomeTabViewRequest{}
 	}
-	var blocks slack.Blocks = handleAppHomeViewAdmin(user, config, channelId)
+	var blocks slack.Blocks = handleAppHomeViewAdmin(user, config, dbClient, channelId)
 
 	for _, user := range channelUsers {
 		userProfile, err := slackClient.GetUserProfile(&slack.GetUserProfileParameters{UserID: userId})
 		if err != nil {
 			log.Printf("Cannot fetch UserProfile : %s", err.Error())
-			return slack.HomeTabViewRequest{}
+			return slack.HomeTabViewRequest{
+				Type:       slack.VTHomeTab,
+				CallbackID: callbackId,
+				ExternalID: externalId,
+				Blocks:     slack.Blocks{BlockSet: []slack.Block{}},
+			}
 		}
 		userListName := slackMkDownBlock(fmt.Sprintf("*%s*", userProfile.DisplayName))
 		msgAction := slack.NewAccessory(slack.NewButtonBlockElement(fmt.Sprintf("direct_message_%s", user.ID), user.ID, slackTextBlock("Send IM")))
