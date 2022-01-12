@@ -108,6 +108,35 @@ func UpdateMoodById(dbClient *gorm.DB, moodId string, feeling *string, context *
 	return &sourceMood, nil
 }
 
+func deleteDailyMood(dbClient *gorm.DB, moodId uint) (bool, error) {
+	deleteTx := dbClient.Debug().Delete(&DailyMood{}, moodId)
+	if deleteTx.Error != nil {
+		return false, deleteTx.Error
+	}
+	return true, nil
+}
+
+func handleUpdateDailyMood(dbClient *gorm.DB, user *User, mood, threadTS string) (*DailyMood, error) {
+	moodToDelete, err := FetchMoodFromThreadTS(dbClient, threadTS, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	if isDeleted, err := deleteDailyMood(dbClient, moodToDelete.ID); err != nil {
+		return nil, err
+	} else if !isDeleted {
+		return nil, fmt.Errorf("Mood %d has not been deleted since does not exists", moodToDelete.ID)
+	} else {
+		moodToCreate := &DailyMood{UserID: user.ID, Mood: mood, ThreadTS: threadTS}
+
+		user.Moods = append(user.Moods, *moodToCreate)
+		tx := dbClient.Debug().Session(&gorm.Session{FullSaveAssociations: true}).Updates(&user)
+		if tx.Error != nil {
+			return nil, fmt.Errorf("update with dailyMood: %s", tx.Error.Error())
+		}
+		return moodToCreate, nil
+	}
+}
+
 func HandleAddDailyMood(dbClient *gorm.DB, slackClient *slack.Client, channelId, userId, userName, mood, threadTS string) (*DailyMood, error) {
 	var foundUser User = User{SlackUserID: userId, SlackChannelId: channelId, Username: userName}
 
@@ -119,7 +148,9 @@ func HandleAddDailyMood(dbClient *gorm.DB, slackClient *slack.Client, channelId,
 			log.Printf("Error hasAlreadySetMood : %s", err.Error())
 			return nil, err
 		} else if hasAlreadySetMood {
-			return nil, NewErrMoodAlreadySet(userId)
+			//TODO: handle update mood !!
+			return handleUpdateDailyMood(dbClient, &foundUser, mood, threadTS)
+			//return nil, NewErrMoodAlreadySet(userId)
 		}
 	} else {
 		tx = dbClient.Debug().Save(&foundUser)

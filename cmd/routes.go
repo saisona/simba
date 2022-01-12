@@ -147,6 +147,7 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 						return err
 					}
 				} else if err != nil {
+					c.Error(err)
 					return err
 				}
 				viewModal := viewAppModalMood(userId, username, action.Value, dailyMood.ID)
