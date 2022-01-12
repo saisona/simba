@@ -69,6 +69,14 @@ func SendSlackTSMessage(client *slack.Client, config *Config, message string, ts
 	return threadTS, nil
 }
 
+func SendSlackTSMessageToUser(client *slack.Client, userId, message string, ts string) (string, error) {
+	_, threadTS, _, err := client.SendMessage(userId, slackTextObject(message), slack.MsgOptionTS(ts))
+	if err != nil {
+		return "", err
+	}
+	return threadTS, nil
+}
+
 func SendSlackMessage(client *slack.Client, config *Config, message string) (string, error) {
 	_, threadTS, _, err := client.SendMessage(config.CHANNEL_ID, slackTextObject(message))
 	if err != nil {
@@ -79,6 +87,22 @@ func SendSlackMessage(client *slack.Client, config *Config, message string) (str
 
 func SendSlackMessageToUser(client *slack.Client, userId, message string) (string, error) {
 	_, threadTS, _, err := client.SendMessage(userId, slackTextObject(message))
+	if err != nil {
+		return "", err
+	}
+	return threadTS, nil
+}
+
+func SendErrorMessageToUser(client *slack.Client, userId string, errToSend error) (string, error) {
+	errMessageThread := fmt.Sprintf("[ERROR] An error occured with your action please contact your admin. Info in the thread")
+	errMessage := fmt.Sprintf("%s", errToSend.Error())
+
+	threadTS, err := SendSlackMessageToUser(client, userId, errMessageThread)
+	if err != nil {
+		return "", err
+	}
+
+	_, err = SendSlackTSMessageToUser(client, userId, errMessage, threadTS)
 	if err != nil {
 		return "", err
 	}

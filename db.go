@@ -83,7 +83,7 @@ func UpdateMood(dbClient *gorm.DB, sourceMood *DailyMood, feeling *string, conte
 
 func UpdateMoodById(dbClient *gorm.DB, moodId string, feeling *string, context *string) (*DailyMood, error) {
 	var sourceMood DailyMood
-	if tx := dbClient.First(&sourceMood, "id = ? ", moodId); tx.Error != nil {
+	if tx := dbClient.Debug().First(&sourceMood, "id = ? ", moodId); tx.Error != nil {
 		return &sourceMood, tx.Error
 	}
 
