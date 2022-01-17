@@ -246,8 +246,7 @@ func fromJsonToBlocks(dbClient *gorm.DB, channelId, threadTS string, firstPrint 
 
 		blockMessageArray, err := drawResults(userWithDailyMoods)
 		if err != nil {
-			log.Printf("[ERROR] drawResults : %s", err.Error())
-			panic(err)
+			log.Panicf("[ERROR] drawResults : %s", err.Error())
 		}
 
 		blockMessage.Blocks.BlockSet = append(blockMessage.Blocks.BlockSet, blockMessageArray...)
