@@ -33,9 +33,8 @@ jobs:
       - name: Unit tests
         run: |-
           make test
-      - run:
-          name: Upload coverage to Codecov
-          command: bash <(curl -s https://codecov.io/bash)
+      - name: Upload coverage to Codecov
+        run: bash <(curl -s https://codecov.io/bash)
       - uses: codecov/codecov-action@v2
         with:
           token: 504c0dca-4f8c-46ec-9d41-d3bf9cba2dec
