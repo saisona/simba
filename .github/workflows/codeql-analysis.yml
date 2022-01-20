@@ -21,6 +21,16 @@ on:
     - cron: '30 2 * * 4'
 
 jobs:
+  codecov:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - uses: codecov/codecov-action@v2
+        with:
+          token: 504c0dca-4f8c-46ec-9d41-d3bf9cba2dec
+
   analyze:
     name: Analyze
     runs-on: ubuntu-latest
