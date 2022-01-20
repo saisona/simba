@@ -48,7 +48,11 @@ func TestFromMoodToSmiley(t *testing.T) {
 }
 
 func TestDrawResultsEmpty(t *testing.T) {
-	assert.Len(t, simba.DrawResults([]*simba.User{}), 0)
+	blocks, err := simba.DrawResults([]*simba.User{})
+	if err != nil {
+		t.Error(err)
+	}
+	assert.Len(t, blocks, 0)
 }
 
 func TestDrawResultsOneUserNoMood(t *testing.T) {
@@ -60,7 +64,11 @@ func TestDrawResultsOneUserNoMood(t *testing.T) {
 		Username:       "fake_username",
 		Moods:          []simba.DailyMood{},
 	}
-	assert.Len(t, simba.DrawResults([]*simba.User{fakeSimbaUser}), 0)
+	blocks, err := simba.DrawResults([]*simba.User{fakeSimbaUser})
+	if err != nil {
+		t.Error(err)
+	}
+	assert.Len(t, blocks, 0)
 }
 
 func TestDrawResultsOneUserOneMoodNoFeelingNoContext(t *testing.T) {
@@ -77,7 +85,10 @@ func TestDrawResultsOneUserOneMoodNoFeelingNoContext(t *testing.T) {
 		Username:       "fake_username",
 		Moods:          []simba.DailyMood{fakeMood},
 	}
-	slackBlocks := simba.DrawResults([]*simba.User{fakeSimbaUser})
+	slackBlocks, err := simba.DrawResults([]*simba.User{fakeSimbaUser})
+	if err != nil {
+		t.Error(err)
+	}
 	assert.Len(t, slackBlocks, 1)
 	anyBlock := slackBlocks[0]
 	assert.IsType(t, &slack.SectionBlock{}, anyBlock)
@@ -107,7 +118,10 @@ func TestDrawResultsOneUserOneMoodOneFeelingNoContext(t *testing.T) {
 		Username:       "fake_username",
 		Moods:          []simba.DailyMood{fakeMood},
 	}
-	slackBlocks := simba.DrawResults([]*simba.User{fakeSimbaUser})
+	slackBlocks, err := simba.DrawResults([]*simba.User{fakeSimbaUser})
+	if err != nil {
+		t.Error(err)
+	}
 	assert.Len(t, slackBlocks, 1)
 	anyBlock := slackBlocks[0]
 	assert.IsType(t, &slack.SectionBlock{}, anyBlock)
@@ -135,7 +149,10 @@ func TestDrawResultsOneUserOneMoodOneFeelingWithContext(t *testing.T) {
 		Username:       "fake_username",
 		Moods:          []simba.DailyMood{fakeMood},
 	}
-	slackBlocks := simba.DrawResults([]*simba.User{fakeSimbaUser})
+	slackBlocks, err := simba.DrawResults([]*simba.User{fakeSimbaUser})
+	if err != nil {
+		t.Error(err)
+	}
 	assert.Len(t, slackBlocks, 2)
 	anyBlock := slackBlocks[0]
 	assert.IsType(t, &slack.SectionBlock{}, anyBlock)
@@ -188,7 +205,10 @@ func TestDrawResultsTwoUsersOneMoodOneFeelingWithContext(t *testing.T) {
 		Username:       "fake_username2",
 		Moods:          []simba.DailyMood{fakeMood2},
 	}
-	slackBlocks := simba.DrawResults([]*simba.User{fakeSimbaUser1, fakeSimbaUser2})
+	slackBlocks, err := simba.DrawResults([]*simba.User{fakeSimbaUser1, fakeSimbaUser2})
+	if err != nil {
+		t.Error(err)
+	}
 	assert.Len(t, slackBlocks, 5)
 	anyBlock := slackBlocks[0]
 	assert.IsType(t, &slack.SectionBlock{}, anyBlock)
