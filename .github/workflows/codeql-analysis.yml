@@ -27,6 +27,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '^1.17.0' # The Go version to download (if necessary) and use.
       - name: Unit tests
         run: |-
           make test
