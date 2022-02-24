@@ -3,10 +3,8 @@
 # Date              : 21.12.2021
 # Last Modified Date: 21.12.2021
 # Last Modified By  : Alexandre Saison <alexandre.saison@inarix.com>
-
-
 init:
-	go build cmd/*.go  
+	 go build -a -ldflags '-s' -o ./handlers cmd/*.go
 
 test: 
 	go test -test.v -test.shuffle on -test.failfast -timeout 10s -cover -coverprofile=prof.out

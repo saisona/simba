@@ -148,9 +148,7 @@ func HandleAddDailyMood(dbClient *gorm.DB, slackClient *slack.Client, channelId,
 			log.Printf("Error hasAlreadySetMood : %s", err.Error())
 			return nil, err
 		} else if hasAlreadySetMood {
-			//TODO: handle update mood !!
 			return handleUpdateDailyMood(dbClient, &foundUser, mood, threadTS)
-			//return nil, NewErrMoodAlreadySet(userId)
 		}
 	} else {
 		tx = dbClient.Debug().Save(&foundUser)

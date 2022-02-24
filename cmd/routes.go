@@ -79,7 +79,7 @@ func handleRouteEvents(c echo.Context, slackClient *slack.Client, dbClient *gorm
 	return nil
 }
 
-func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *simba.Config, dbClient *gorm.DB, threadTS string, previousBlocks []slack.Block) error {
+func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *simba.Config, dbClient *gorm.DB, threadTS string) error {
 	callBackStruct := new(slack.InteractionCallback)
 	err := json.Unmarshal([]byte(c.Request().FormValue("payload")), &callBackStruct)
 

@@ -200,14 +200,14 @@ func drawResults(userWithDailyMoods []*User) ([]slack.Block, error) {
 		userFeeling := u.Moods[0].Feeling
 		fields := []*slack.TextBlockObject{firstField}
 		if userFeeling != "" {
-			secondField := slackTextBlock(fmt.Sprintf("%s %s %s", fromMoodToSmiley(userMood), fromFeelingToSmiley(userFeeling), userFeeling))
+			secondField := slackTextBlock(fmt.Sprintf("%s %s %s", FromMoodToSmiley(userMood), FromFeelingToSmiley(userFeeling), userFeeling))
 			if secondField.Validate() != nil {
 				return blockMessageArray, fmt.Errorf("#drawResults::second has no feeling= %s", secondField.Validate().Error())
 			}
 
 			fields = append(fields, secondField)
 		} else {
-			secondField := slackTextBlock(fmt.Sprintf("%s %s", fromMoodToSmiley(userMood), strings.ToUpper(strings.ReplaceAll(userMood, "_", " "))))
+			secondField := slackTextBlock(fmt.Sprintf("%s %s", FromMoodToSmiley(userMood), strings.ToUpper(strings.ReplaceAll(userMood, "_", " "))))
 			if secondField.Validate() != nil {
 				return blockMessageArray, fmt.Errorf("#drawResults::second hasFeeling= %s", secondField.Validate().Error())
 			}
@@ -254,7 +254,7 @@ func fromJsonToBlocks(dbClient *gorm.DB, channelId, threadTS string, firstPrint 
 	return blockMessage
 }
 
-func fromMoodToSmiley(mood string) string {
+func FromMoodToSmiley(mood string) string {
 	switch mood {
 	case "good_mood":
 		return ":heart:"
@@ -267,7 +267,7 @@ func fromMoodToSmiley(mood string) string {
 	}
 }
 
-func fromFeelingToSmiley(feeling string) string {
+func FromFeelingToSmiley(feeling string) string {
 	switch feeling {
 	case "Excited":
 		return ":star-struck:"
