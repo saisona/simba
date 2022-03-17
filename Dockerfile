@@ -17,7 +17,7 @@ COPY *.go /tmp/go-simba-app/
 RUN go build -o ./out/app cmd/*.go
 
 # Start fresh from a smaller image
-FROM alpine:3.14
+FROM alpine:3.15
 
 RUN apk add ca-certificates
 
