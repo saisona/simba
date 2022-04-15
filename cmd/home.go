@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/saisona/simba"
@@ -12,8 +11,27 @@ import (
 )
 
 type homeViewInfo struct {
+	Total       float64
 	SlackUserId string
 	WeeklyMoods []simba.DailyMood
+}
+
+func (hvai homeViewInfo) avgTotal(m map[string]int) map[string]float64 {
+	avg := make(map[string]float64)
+	for k := range m {
+		avg[k] = (float64(m[k]) / hvai.Total) * 100
+	}
+	return avg
+}
+
+func findWorseMoodyPerson(dbClient *gorm.DB) (*simba.User, error) {
+	var moodyUser *simba.User
+	if tx := dbClient.Debug().Find(&moodyUser); tx.Error != nil {
+		return nil, tx.Error
+	} else {
+		//TODO: handle return the right person
+		return moodyUser, nil
+	}
 }
 
 func NewHomeViewInfo(dbClient *gorm.DB, slackUserId, simbaUserId string) (*homeViewInfo, error) {
@@ -34,6 +52,7 @@ func (hvi *homeViewInfo) fetchWeeklyMoods(dbClient *gorm.DB, simbaUserId string)
 	}
 
 	hvi.WeeklyMoods = weeklyMoods
+	hvi.Total = float64(len(weeklyMoods))
 	return nil
 }
 
@@ -59,16 +78,16 @@ func handleAppHomeViewNotAdmin(user *simba.User, config *simba.Config, dbClient 
 	slackHeaderBlock := slack.NewHeaderBlock(basicText)
 
 	slackTitleInfo := slackTextBlock("Week informations about you")
-	blockSet := []slack.Block{slackHeaderBlock, slack.NewDividerBlock(), slackTitleInfo}
-	for mood, count := range hvi.mapCount() {
-		txtSlack := fmt.Sprintf("You've been %d in %s", count, strings.ReplaceAll(mood, "_", " "))
-		blockSet = append(blockSet, slackTextBlock(txtSlack))
+	buttonBlockSet := []slack.BlockElement{}
+	for mood, k := range hvi.avgTotal(hvi.mapCount()) {
+		txtSlackStr := fmt.Sprintf("%s %.2f", simba.FromMoodToSmiley(mood), k)
+		buttonBlock := slack.NewButtonBlockElement(fmt.Sprintf("personnal_%s_%d", mood, time.Now().Unix()), "_", slackTextBlock(txtSlackStr))
+		buttonBlockSet = append(buttonBlockSet, buttonBlock)
 	}
-
+	actionBlock := slack.NewActionBlock(fmt.Sprintf("action_moods_block_%d", time.Now().Unix()), buttonBlockSet...)
 	return slack.Blocks{
-		BlockSet: blockSet,
+		BlockSet: []slack.Block{slackHeaderBlock, slack.NewDividerBlock(), slackTitleInfo, actionBlock},
 	}
-
 }
 
 func handleAppHomeView(slackClient *slack.Client, dbClient *gorm.DB, config *simba.Config, userId string) slack.HomeTabViewRequest {

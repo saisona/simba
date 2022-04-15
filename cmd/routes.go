@@ -67,7 +67,7 @@ func handleRouteEvents(c echo.Context, slackClient *slack.Client, dbClient *gorm
 			viewResponse, err := slackClient.PublishView(ev.User, handleAppHomeView(slackClient, dbClient, config, ev.User), "")
 			if err != nil {
 				c.Logger().Errorf("PublishView AppHomeOpenedEvent = %s", err.Error())
-				log.Printf("[ERROR] response => %+v", viewResponse)
+				log.Printf("[ERROR] response => %+v", viewResponse.ResponseMetadata.Messages)
 				log.Printf("[ERROR] responseError => %s", viewResponse.Err().Error())
 				return err
 			}

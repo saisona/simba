@@ -61,7 +61,7 @@ func (hvi homeViewAdminInfo) mapAllCount() map[string]int {
 
 func (hvai homeViewAdminInfo) avgTotal(m map[string]int) map[string]float64 {
 	avg := make(map[string]float64)
-	for k, _ := range m {
+	for k := range m {
 		avg[k] = (float64(m[k]) / hvai.Total) * 100
 	}
 	return avg
@@ -119,13 +119,14 @@ func handleAppHomeViewAdmin(user *simba.User, config *simba.Config, dbClient *go
 	for u, m := range hvai.avgByUser(hvai.mapByUserCount()) {
 		slackAvgByUserSectionTitle := slack.NewHeaderBlock(slackTextBlock(u))
 		blockSet = append(blockSet, slackAvgByUserSectionTitle)
+		elemBlock := []slack.BlockElement{}
 		for k, v := range m {
 			text := fmt.Sprintf("%s %.2f%%", simba.FromMoodToSmiley(k), v)
-			buttonBlock := slack.NewButtonBlockElement("_", "", slackTextBlock(text))
-			actionBlock := slack.NewActionBlock(fmt.Sprintf("user_%s_%s_%d", u, k, time.Now().Unix()+1), buttonBlock)
-			blockSet = append(blockSet, actionBlock)
+			buttonBlock := slack.NewButtonBlockElement(fmt.Sprintf("%s_%d", k, time.Now().Unix()), "", slackTextBlock(text))
+			elemBlock = append(elemBlock, buttonBlock)
 		}
-		blockSet = append(blockSet, slack.NewDividerBlock())
+		actionBlock := slack.NewActionBlock(fmt.Sprintf("action_block_user_%s_%d", u, time.Now().Unix()+1), elemBlock...)
+		blockSet = append(blockSet, actionBlock, slack.NewDividerBlock())
 	}
 
 	return slack.Blocks{
