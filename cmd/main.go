@@ -18,7 +18,6 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/slack-go/slack"
 )
 
 func main() {
@@ -34,8 +33,6 @@ func main() {
 		return
 	}
 
-	var previousBlocks []slack.Block
-
 	go watchValueChanged(&threadTS, config.SLACK_MESSAGE_CHANNEL, e.Logger)
 
 	scheduler.StartAsync()
@@ -49,7 +46,7 @@ func main() {
 	})
 
 	e.POST("/interactive", func(c echo.Context) error {
-		return handleRouteInteractive(c, slackClient, config, dbClient, threadTS, previousBlocks)
+		return handleRouteInteractive(c, slackClient, config, dbClient, threadTS)
 	})
 
 	defer close(config.SLACK_MESSAGE_CHANNEL)

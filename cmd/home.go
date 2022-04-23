@@ -10,34 +10,84 @@ import (
 	"gorm.io/gorm"
 )
 
-//@desc Render Home view admin or update depending on slackChannelId is given or not
-//@params user is a DB representation of a Simba user
-//@params [slackChannelId] is optionnal given if already known or not used for update
-//@returns Blocks to be send to update Simba Home view
-func handleAppHomeViewAdmin(user *simba.User, config *simba.Config, dbClient *gorm.DB, slackChannelId string) slack.Blocks {
-	basicText := slackTextBlock("Simba Application (Admin)")
-	slackHeaderBlock := slack.NewHeaderBlock(basicText)
+type homeViewInfo struct {
+	Total       float64
+	SlackUserId string
+	WeeklyMoods []simba.DailyMood
+}
 
-	blockSet := []slack.Block{slackHeaderBlock, slack.NewDividerBlock()}
-
-	return slack.Blocks{
-		BlockSet: blockSet,
+func (hvai homeViewInfo) avgTotal(m map[string]int) map[string]float64 {
+	avg := make(map[string]float64)
+	for k := range m {
+		avg[k] = (float64(m[k]) / hvai.Total) * 100
 	}
+	return avg
+}
+
+func findWorseMoodyPerson(dbClient *gorm.DB) (*simba.User, error) {
+	var moodyUser *simba.User
+	if tx := dbClient.Debug().Find(&moodyUser); tx.Error != nil {
+		return nil, tx.Error
+	} else {
+		//TODO: handle return the right person
+		return moodyUser, nil
+	}
+}
+
+func NewHomeViewInfo(dbClient *gorm.DB, slackUserId, simbaUserId string) (*homeViewInfo, error) {
+	hvi := &homeViewInfo{
+		SlackUserId: slackUserId,
+		WeeklyMoods: make([]simba.DailyMood, 7),
+	}
+	if err := hvi.fetchWeeklyMoods(dbClient, simbaUserId); err != nil {
+		return nil, err
+	}
+	return hvi, nil
+}
+
+func (hvi *homeViewInfo) fetchWeeklyMoods(dbClient *gorm.DB, simbaUserId string) error {
+	var weeklyMoods []simba.DailyMood
+	if tx := dbClient.Debug().Where("user_id=?", simbaUserId).Limit(7).Order("created_at DESC").Find(&weeklyMoods); tx.Error != nil {
+		return tx.Error
+	}
+
+	hvi.WeeklyMoods = weeklyMoods
+	hvi.Total = float64(len(weeklyMoods))
+	return nil
+}
+
+func (hvi homeViewInfo) mapCount() map[string]int {
+	var moodCountMap map[string]int = map[string]int{}
+	for _, k := range hvi.WeeklyMoods {
+		moodCountMap[k.Mood] += 1
+	}
+	return moodCountMap
 }
 
 //@desc Render Home view not admin or update depending on slackChannelId is given or not
 //@params user is a DB representation of a Simba user
 //@params [slackChannelId] is optionnal given if already known or not used for update
 //@returns Blocks to be send to update Simba Home view
-func handleAppHomeViewNotAdmin(user *simba.User) slack.Blocks {
+func handleAppHomeViewNotAdmin(user *simba.User, config *simba.Config, dbClient *gorm.DB) slack.Blocks {
 	//Header
 	basicText := slackTextBlock("Simba Application (Not Admin)")
+	hvi, err := NewHomeViewInfo(dbClient, user.SlackUserID, fmt.Sprint(user.ID))
+	if err != nil {
+		panic(err)
+	}
 	slackHeaderBlock := slack.NewHeaderBlock(basicText)
 
-	return slack.Blocks{
-		BlockSet: []slack.Block{slackHeaderBlock, slack.NewDividerBlock()},
+	slackTitleInfo := slackTextBlock("Week informations about you")
+	buttonBlockSet := []slack.BlockElement{}
+	for mood, k := range hvi.avgTotal(hvi.mapCount()) {
+		txtSlackStr := fmt.Sprintf("%s %.2f", simba.FromMoodToSmiley(mood), k)
+		buttonBlock := slack.NewButtonBlockElement(fmt.Sprintf("personnal_%s_%d", mood, time.Now().Unix()), "_", slackTextBlock(txtSlackStr))
+		buttonBlockSet = append(buttonBlockSet, buttonBlock)
 	}
-
+	actionBlock := slack.NewActionBlock(fmt.Sprintf("action_moods_block_%d", time.Now().Unix()), buttonBlockSet...)
+	return slack.Blocks{
+		BlockSet: []slack.Block{slackHeaderBlock, slack.NewDividerBlock(), slackTitleInfo, actionBlock},
+	}
 }
 
 func handleAppHomeView(slackClient *slack.Client, dbClient *gorm.DB, config *simba.Config, userId string) slack.HomeTabViewRequest {
@@ -49,9 +99,9 @@ func handleAppHomeView(slackClient *slack.Client, dbClient *gorm.DB, config *sim
 	}
 	var blocks slack.Blocks
 	if user.IsManager || slackUser.IsAdmin {
-		blocks = handleAppHomeViewAdmin(user, config, dbClient, "")
+		blocks = handleAppHomeViewAdmin(user, config, dbClient)
 	} else {
-		blocks = handleAppHomeViewNotAdmin(user)
+		blocks = handleAppHomeViewNotAdmin(user, config, dbClient)
 	}
 
 	slackModalViewRequest := slack.HomeTabViewRequest{
@@ -72,7 +122,7 @@ func handleAppHomeViewUpdated(slackClient *slack.Client, dbClient *gorm.DB, conf
 		log.Printf("Error during OpenView to fetch Admin = %s", err.Error())
 		return slack.HomeTabViewRequest{}
 	}
-	var blocks slack.Blocks = handleAppHomeViewAdmin(user, config, dbClient, channelId)
+	var blocks slack.Blocks = handleAppHomeViewAdmin(user, config, dbClient)
 
 	for _, user := range channelUsers {
 		userProfile, err := slackClient.GetUserProfile(&slack.GetUserProfileParameters{UserID: userId})

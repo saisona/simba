@@ -69,6 +69,14 @@ func SendSlackTSMessage(client *slack.Client, config *Config, message string, ts
 	return threadTS, nil
 }
 
+func SendSlackTSMessageToUser(client *slack.Client, userId, message string, ts string) (string, error) {
+	_, threadTS, _, err := client.SendMessage(userId, slackTextObject(message), slack.MsgOptionTS(ts))
+	if err != nil {
+		return "", err
+	}
+	return threadTS, nil
+}
+
 func SendSlackMessage(client *slack.Client, config *Config, message string) (string, error) {
 	_, threadTS, _, err := client.SendMessage(config.CHANNEL_ID, slackTextObject(message))
 	if err != nil {
@@ -79,6 +87,22 @@ func SendSlackMessage(client *slack.Client, config *Config, message string) (str
 
 func SendSlackMessageToUser(client *slack.Client, userId, message string) (string, error) {
 	_, threadTS, _, err := client.SendMessage(userId, slackTextObject(message))
+	if err != nil {
+		return "", err
+	}
+	return threadTS, nil
+}
+
+func SendErrorMessageToUser(client *slack.Client, userId string, errToSend error) (string, error) {
+	errMessageThread := fmt.Sprintf("[ERROR] An error occured with your action please contact your admin. Info in the thread")
+	errMessage := fmt.Sprintf("%s", errToSend.Error())
+
+	threadTS, err := SendSlackMessageToUser(client, userId, errMessageThread)
+	if err != nil {
+		return "", err
+	}
+
+	_, err = SendSlackTSMessageToUser(client, userId, errMessage, threadTS)
 	if err != nil {
 		return "", err
 	}
@@ -176,14 +200,14 @@ func drawResults(userWithDailyMoods []*User) ([]slack.Block, error) {
 		userFeeling := u.Moods[0].Feeling
 		fields := []*slack.TextBlockObject{firstField}
 		if userFeeling != "" {
-			secondField := slackTextBlock(fmt.Sprintf("%s %s %s", fromMoodToSmiley(userMood), fromFeelingToSmiley(userFeeling), userFeeling))
+			secondField := slackTextBlock(fmt.Sprintf("%s %s %s", FromMoodToSmiley(userMood), FromFeelingToSmiley(userFeeling), userFeeling))
 			if secondField.Validate() != nil {
 				return blockMessageArray, fmt.Errorf("#drawResults::second has no feeling= %s", secondField.Validate().Error())
 			}
 
 			fields = append(fields, secondField)
 		} else {
-			secondField := slackTextBlock(fmt.Sprintf("%s %s", fromMoodToSmiley(userMood), strings.ToUpper(strings.ReplaceAll(userMood, "_", " "))))
+			secondField := slackTextBlock(fmt.Sprintf("%s %s", FromMoodToSmiley(userMood), strings.ToUpper(strings.ReplaceAll(userMood, "_", " "))))
 			if secondField.Validate() != nil {
 				return blockMessageArray, fmt.Errorf("#drawResults::second hasFeeling= %s", secondField.Validate().Error())
 			}
@@ -222,8 +246,7 @@ func fromJsonToBlocks(dbClient *gorm.DB, channelId, threadTS string, firstPrint 
 
 		blockMessageArray, err := drawResults(userWithDailyMoods)
 		if err != nil {
-			log.Printf("[ERROR] drawResults : %s", err.Error())
-			panic(err)
+			log.Panicf("[ERROR] drawResults : %s", err.Error())
 		}
 
 		blockMessage.Blocks.BlockSet = append(blockMessage.Blocks.BlockSet, blockMessageArray...)
@@ -231,7 +254,7 @@ func fromJsonToBlocks(dbClient *gorm.DB, channelId, threadTS string, firstPrint 
 	return blockMessage
 }
 
-func fromMoodToSmiley(mood string) string {
+func FromMoodToSmiley(mood string) string {
 	switch mood {
 	case "good_mood":
 		return ":heart:"
@@ -244,7 +267,7 @@ func fromMoodToSmiley(mood string) string {
 	}
 }
 
-func fromFeelingToSmiley(feeling string) string {
+func FromFeelingToSmiley(feeling string) string {
 	switch feeling {
 	case "Excited":
 		return ":star-struck:"

@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -55,8 +54,7 @@ func handleRouteEvents(c echo.Context, slackClient *slack.Client, dbClient *gorm
 		var r *slackevents.ChallengeResponse
 		err := json.Unmarshal([]byte(body), &r)
 		if err != nil {
-			c.NoContent(http.StatusInternalServerError)
-			c.Logger().Errorf("#slack.URLVerification parsing: %s", err.Error())
+			c.Error(fmt.Errorf("#slack.URLVerification parsing: %s", err.Error()))
 			return err
 		}
 		c.String(http.StatusOK, r.Challenge)
@@ -69,7 +67,7 @@ func handleRouteEvents(c echo.Context, slackClient *slack.Client, dbClient *gorm
 			viewResponse, err := slackClient.PublishView(ev.User, handleAppHomeView(slackClient, dbClient, config, ev.User), "")
 			if err != nil {
 				c.Logger().Errorf("PublishView AppHomeOpenedEvent = %s", err.Error())
-				log.Printf("[ERROR] response => %+v", viewResponse)
+				log.Printf("[ERROR] response => %+v", viewResponse.ResponseMetadata.Messages)
 				log.Printf("[ERROR] responseError => %s", viewResponse.Err().Error())
 				return err
 			}
@@ -81,7 +79,7 @@ func handleRouteEvents(c echo.Context, slackClient *slack.Client, dbClient *gorm
 	return nil
 }
 
-func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *simba.Config, dbClient *gorm.DB, threadTS string, previousBlocks []slack.Block) error {
+func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *simba.Config, dbClient *gorm.DB, threadTS string) error {
 	callBackStruct := new(slack.InteractionCallback)
 	err := json.Unmarshal([]byte(c.Request().FormValue("payload")), &callBackStruct)
 
@@ -117,6 +115,7 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 		if err != nil {
 			username = "John Snow"
 			c.Logger().Error("[ERROR] #getUserProfile => %s", err.Error())
+			simba.SendErrorMessageToUser(slackClient, userId, err)
 		} else if profile.DisplayName != "" {
 			username = profile.DisplayName
 		} else if profile.RealName != "" {
@@ -130,10 +129,13 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 				c.Logger().Printf("Clicked on button for mood_feeling_select with value = %s", action.Value)
 
 				if simbaUser, _, err := simba.FechCurrent(dbClient, slackClient, userId); err != nil {
+					simba.SendErrorMessageToUser(slackClient, userId, err)
 					return err
 				} else if dailyMood, err := simba.FetchMoodFromThreadTS(dbClient, threadTS, simbaUser.ID); err != nil {
+					simba.SendErrorMessageToUser(slackClient, userId, err)
 					return err
 				} else if _, err = simba.UpdateMood(dbClient, dailyMood, &action.Value, nil); err != nil {
+					simba.SendErrorMessageToUser(slackClient, userId, err)
 					return err
 				}
 
@@ -142,11 +144,9 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 				return nil
 			case strings.Contains(action.ActionID, "mood_user"):
 				dailyMood, err := simba.HandleAddDailyMood(dbClient, slackClient, channelId, userId, username, action.Value, threadTS)
-				if errors.Is(err, &simba.ErrMoodAlreadySet{}) {
-					if _, err := simba.SendSlackMessageToUser(slackClient, userId, "You already set your DailyMood, Sorry you are not allowed to modify it for the moment."); err != nil {
-						return err
-					}
-				} else if err != nil {
+				if err != nil {
+					c.Error(err)
+					simba.SendErrorMessageToUser(slackClient, userId, err)
 					return err
 				}
 				viewModal := viewAppModalMood(userId, username, action.Value, dailyMood.ID)
@@ -158,6 +158,7 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 
 				threadTS, err := simba.UpdateMessage(slackClient, config, dbClient, threadTS)
 				if err != nil {
+					simba.SendErrorMessageToUser(slackClient, userId, err)
 					return err
 				}
 				config.SLACK_MESSAGE_CHANNEL <- threadTS
@@ -180,7 +181,7 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 				}
 			default:
 				err := simba.NewErrNoActionFound(action.ActionID, action.Value)
-				log.Println(err)
+				simba.SendErrorMessageToUser(slackClient, userId, err)
 				return err
 			}
 		}
