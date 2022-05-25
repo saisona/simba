@@ -12,4 +12,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag docker.io/asaison/simba:latest
+      run: docker build . --file Dockerfile --tag asaison/simba:latest --tag asaison/simba:${{ github.sha }}
+    - name: Push the Docker image
+      run: docker push asaison/simba:latest
