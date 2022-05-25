@@ -20,7 +20,6 @@ import (
 
 // create database foreign key for user & credit_cards
 func handleMigration(db *gorm.DB) error {
-
 	if err := db.AutoMigrate(&User{}); err != nil {
 		return err
 	}
@@ -41,8 +40,6 @@ func handleMigration(db *gorm.DB) error {
 }
 
 // Initialize database client (*gorm.DB)
-//--------------------------------------
-// @args
 func InitDbClient(dbHost, dbUser, dbPassword, dbName string, migrate bool) *gorm.DB {
 	connectionString := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=5432 sslmode=disable TimeZone=Europe/Paris", dbHost, dbUser, dbPassword, dbName)
 	gormConfig := &gorm.Config{
@@ -62,6 +59,7 @@ func InitDbClient(dbHost, dbUser, dbPassword, dbName string, migrate bool) *gorm
 	return db
 }
 
+//UpdateMood is taking dbClient and given mood to update feeling and context.
 func UpdateMood(dbClient *gorm.DB, sourceMood *DailyMood, feeling *string, context *string) (*DailyMood, error) {
 	if sourceMood == nil {
 		return nil, fmt.Errorf("sourceMood is nil")
