@@ -298,7 +298,7 @@ func ContextInputText() *slack.InputBlock {
 
 	//If does not work use true as emoji
 	inputBlockElem := slack.NewPlainTextInputBlockElement(slackTextBlock("Context"), actionId)
-	inputBlock := slack.NewInputBlock(blockId, slackTextBlock("Context"), inputBlockElem)
+	inputBlock := slack.NewInputBlock(blockId, slackTextBlock("Context"), nil, inputBlockElem)
 
 	//Modifiers
 	inputBlock.DispatchAction = false
