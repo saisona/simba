@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/go-co-op/gocron v1.17.1
 	github.com/joho/godotenv v1.4.0
-	github.com/labstack/echo/v4 v4.6.1
+	github.com/labstack/echo/v4 v4.9.0
 	github.com/slack-go/slack v0.11.4
 	github.com/stretchr/testify v1.8.0
 	gorm.io/driver/postgres v1.4.5
