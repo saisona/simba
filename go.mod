@@ -1,11 +1,11 @@
 module github.com/saisona/simba
 
-go 1.17
+go 1.18
 
 require (
 	github.com/go-co-op/gocron v1.17.1
 	github.com/joho/godotenv v1.4.0
-	github.com/labstack/echo/v4 v4.6.1
+	github.com/labstack/echo/v4 v4.9.1
 	github.com/slack-go/slack v0.11.4
 	github.com/stretchr/testify v1.8.0
 	gorm.io/driver/postgres v1.4.5
@@ -26,7 +26,7 @@ require (
 	github.com/jackc/pgx/v4 v4.17.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
-	github.com/labstack/gommon v0.3.1 // indirect
+	github.com/labstack/gommon v0.4.0 // indirect
 	github.com/mattn/go-colorable v0.1.11 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
