@@ -327,7 +327,7 @@ func UpdateMessage(client *slack.Client, config *Config, dbClient *gorm.DB, thre
 }
 
 func FetchUsersFromChannel(slackClient *slack.Client, channelId string) (*slack.Channel, []*slack.User, error) {
-	slackChannel, err := slackClient.GetConversationInfo(channelId, true)
+	slackChannel, err := slackClient.GetConversationInfo(&slack.GetConversationInfoInput{ChannelID: channelId, IncludeLocale: true})
 	if err != nil {
 		return nil, nil, err
 	}
