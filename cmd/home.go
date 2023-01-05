@@ -64,10 +64,10 @@ func (hvi homeViewInfo) mapCount() map[string]int {
 	return moodCountMap
 }
 
-//@desc Render Home view not admin or update depending on slackChannelId is given or not
-//@params user is a DB representation of a Simba user
-//@params [slackChannelId] is optionnal given if already known or not used for update
-//@returns Blocks to be send to update Simba Home view
+// @desc Render Home view not admin or update depending on slackChannelId is given or not
+// @params user is a DB representation of a Simba user
+// @params [slackChannelId] is optionnal given if already known or not used for update
+// @returns Blocks to be send to update Simba Home view
 func handleAppHomeViewNotAdmin(user *simba.User, config *simba.Config, dbClient *gorm.DB) slack.Blocks {
 	//Header
 	basicText := slackTextBlock("Simba Application (Not Admin)")
@@ -81,7 +81,7 @@ func handleAppHomeViewNotAdmin(user *simba.User, config *simba.Config, dbClient 
 	buttonBlockSet := []slack.BlockElement{}
 	for mood, k := range hvi.avgTotal(hvi.mapCount()) {
 		txtSlackStr := fmt.Sprintf("%s %.2f", simba.FromMoodToSmiley(mood), k)
-		buttonBlock := slack.NewButtonBlockElement(fmt.Sprintf("personnal_%s_%d", mood, time.Now().Unix()), "_", slackTextBlock(txtSlackStr))
+		buttonBlock := slack.NewButtonBlockElement(fmt.Sprintf("personnal_%s_%d", mood, time.Now().Unix()), "send_kind_message", slackTextBlock(txtSlackStr))
 		buttonBlockSet = append(buttonBlockSet, buttonBlock)
 	}
 	actionBlock := slack.NewActionBlock(fmt.Sprintf("action_moods_block_%d", time.Now().Unix()), buttonBlockSet...)
