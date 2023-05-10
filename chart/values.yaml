@@ -45,16 +45,9 @@ serviceAccount:
 
 podAnnotations: {}
 
-podSecurityContext: {}
-  # fsGroup: 2000
+podSecurityContext: {}   
 
-securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
+securityContext: {}   
 
 service:
   type: ClusterIP
@@ -77,12 +70,12 @@ ingress:
         - simba.inarix.com
 
 resources:
-   limits:
-     cpu: 100m
-     memory: 128Mi
-   requests:
-     cpu: 100m
-     memory: 128Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
 
 autoscaling:
   enabled: false
@@ -91,8 +84,7 @@ autoscaling:
   targetCPUUtilizationPercentage: 80
   # targetMemoryUtilizationPercentage: 80
 
-nodeSelector:
-  name: default
+nodeSelector: {}
 
 tolerations: []
 
