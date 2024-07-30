@@ -1,4 +1,4 @@
-FROM golang:1.17-alpine AS build_base
+FROM golang:1.22-alpine AS build_base
 
 RUN apk add git
 
@@ -17,7 +17,7 @@ COPY *.go /tmp/go-simba-app/
 RUN go build -o ./out/app cmd/*.go
 
 # Start fresh from a smaller image
-FROM alpine:3.18.3
+FROM alpine:3
 
 RUN apk add ca-certificates
 
