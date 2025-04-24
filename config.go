@@ -40,7 +40,10 @@ func InitConfig(isTesting bool) (*Config, error) {
 	cronExpression, cronExists := os.LookupEnv("APP_CRON_EXPRESSION")
 	if !cronExists || cronExpression == "" {
 		cronExpression = "0 0 10 ? * MON-FRI"
-		log.Printf("APP_CRON_EXPRESSION has not been set in env ! Using default one : %s", cronExpression)
+		log.Printf(
+			"APP_CRON_EXPRESSION has not been set in env ! Using default one : %s",
+			cronExpression,
+		)
 	}
 
 	dbConfig, err := initDbConfig()
@@ -49,7 +52,14 @@ func InitConfig(isTesting bool) (*Config, error) {
 	}
 
 	slackMessageChannel := make(chan string)
-	return &Config{CHANNEL_ID: chanId, SLACK_API_TOKEN: slackApiToken, APP_PORT: applicationPort, CRON_EXPRESSION: cronExpression, DB: dbConfig, SLACK_MESSAGE_CHANNEL: slackMessageChannel}, nil
+	return &Config{
+		CHANNEL_ID:            chanId,
+		SLACK_API_TOKEN:       slackApiToken,
+		APP_PORT:              applicationPort,
+		CRON_EXPRESSION:       cronExpression,
+		DB:                    dbConfig,
+		SLACK_MESSAGE_CHANNEL: slackMessageChannel,
+	}, nil
 }
 
 func initDbConfig() (*DbConfig, error) {
@@ -76,7 +86,6 @@ func initDbConfig() (*DbConfig, error) {
 	}
 
 	return &DbConfig{Username: user, Password: password, Host: host, Name: name}, nil
-
 }
 
 type Config struct {
