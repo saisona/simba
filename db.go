@@ -41,7 +41,13 @@ func handleMigration(db *gorm.DB) error {
 
 // Initialize database client (*gorm.DB)
 func InitDbClient(dbHost, dbUser, dbPassword, dbName string, migrate bool) *gorm.DB {
-	connectionString := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=5432 sslmode=disable TimeZone=Europe/Paris", dbHost, dbUser, dbPassword, dbName)
+	connectionString := fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=5432 sslmode=disable TimeZone=Europe/Paris",
+		dbHost,
+		dbUser,
+		dbPassword,
+		dbName,
+	)
 	gormConfig := &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
 		AllowGlobalUpdate:                        true,
@@ -59,8 +65,13 @@ func InitDbClient(dbHost, dbUser, dbPassword, dbName string, migrate bool) *gorm
 	return db
 }
 
-//UpdateMood is taking dbClient and given mood to update feeling and context.
-func UpdateMood(dbClient *gorm.DB, sourceMood *DailyMood, feeling *string, context *string) (*DailyMood, error) {
+// UpdateMood is taking dbClient and given mood to update feeling and context.
+func UpdateMood(
+	dbClient *gorm.DB,
+	sourceMood *DailyMood,
+	feeling *string,
+	context *string,
+) (*DailyMood, error) {
 	if sourceMood == nil {
 		return nil, fmt.Errorf("sourceMood is nil")
 	}
@@ -79,7 +90,12 @@ func UpdateMood(dbClient *gorm.DB, sourceMood *DailyMood, feeling *string, conte
 	return sourceMood, nil
 }
 
-func UpdateMoodById(dbClient *gorm.DB, moodId string, feeling *string, context *string) (*DailyMood, error) {
+func UpdateMoodById(
+	dbClient *gorm.DB,
+	moodId string,
+	feeling *string,
+	context *string,
+) (*DailyMood, error) {
 	var sourceMood DailyMood
 	if tx := dbClient.Debug().First(&sourceMood, "id = ? ", moodId); tx.Error != nil {
 		return &sourceMood, tx.Error
@@ -114,7 +130,11 @@ func deleteDailyMood(dbClient *gorm.DB, moodId uint) (bool, error) {
 	return true, nil
 }
 
-func handleUpdateDailyMood(dbClient *gorm.DB, user *User, mood, threadTS string) (*DailyMood, error) {
+func handleUpdateDailyMood(
+	dbClient *gorm.DB,
+	user *User,
+	mood, threadTS string,
+) (*DailyMood, error) {
 	moodToDelete, err := FetchMoodFromThreadTS(dbClient, threadTS, user.ID)
 	if err != nil {
 		return nil, err
@@ -135,7 +155,11 @@ func handleUpdateDailyMood(dbClient *gorm.DB, user *User, mood, threadTS string)
 	}
 }
 
-func HandleAddDailyMood(dbClient *gorm.DB, slackClient *slack.Client, channelId, userId, userName, mood, threadTS string) (*DailyMood, error) {
+func HandleAddDailyMood(
+	dbClient *gorm.DB,
+	slackClient *slack.Client,
+	channelId, userId, userName, mood, threadTS string,
+) (*DailyMood, error) {
 	var foundUser User = User{SlackUserID: userId, SlackChannelId: channelId, Username: userName}
 
 	tx := dbClient.FirstOrInit(&foundUser, "slack_user_id = ?", foundUser.SlackUserID)
@@ -168,7 +192,11 @@ func HandleAddDailyMood(dbClient *gorm.DB, slackClient *slack.Client, channelId,
 	return moodToCreate, nil
 }
 
-func HasAlreadySetMood(dbClient *gorm.DB, slackClient *slack.Client, userID, threadTS string) (bool, error) {
+func HasAlreadySetMood(
+	dbClient *gorm.DB,
+	slackClient *slack.Client,
+	userID, threadTS string,
+) (bool, error) {
 	user, _, err := FechCurrent(dbClient, slackClient, userID)
 	if err != nil {
 		return false, err
@@ -220,7 +248,11 @@ func IsUserAdmin(dbClient *gorm.DB, userId string) (bool, error) {
 	return user.IsManager, nil
 }
 
-func FechCurrent(dbClient *gorm.DB, slackClient *slack.Client, slackUserId string) (*User, *slack.User, error) {
+func FechCurrent(
+	dbClient *gorm.DB,
+	slackClient *slack.Client,
+	slackUserId string,
+) (*User, *slack.User, error) {
 	var user *User
 	fetchUserTx := dbClient.Debug().Find(&user, "slack_user_id = ?", slackUserId)
 	if fetchUserTx.Error != nil {
