@@ -8,7 +8,7 @@ import (
 
 func TestErrMoodAlreadySet(t *testing.T) {
 	err := simba.NewErrMoodAlreadySet("1234")
-	if err.UserId != "1234" {
+	if err.UserID != "1234" {
 		t.FailNow()
 	} else if err.Error() != "1234 has already set DailyMood" {
 		t.FailNow()

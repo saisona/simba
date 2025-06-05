@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -34,8 +34,14 @@ func secretVerifier(c echo.Context, body []byte, slackSigningSecret string) erro
 	return nil
 }
 
-func handleRouteEvents(c echo.Context, slackClient *slack.Client, dbClient *gorm.DB, config *simba.Config, slackSigningSecret string) error {
-	body, err := ioutil.ReadAll(c.Request().Body)
+func handleRouteEvents(
+	c echo.Context,
+	slackClient *slack.Client,
+	dbClient *gorm.DB,
+	config *simba.Config,
+	slackSigningSecret string,
+) error {
+	body, err := io.ReadAll(c.Request().Body)
 	if err != nil {
 		c.NoContent(http.StatusBadRequest)
 		return err
@@ -43,7 +49,10 @@ func handleRouteEvents(c echo.Context, slackClient *slack.Client, dbClient *gorm
 		return err
 	}
 
-	eventsAPIEvent, err := slackevents.ParseEvent(json.RawMessage(body), slackevents.OptionNoVerifyToken())
+	eventsAPIEvent, err := slackevents.ParseEvent(
+		json.RawMessage(body),
+		slackevents.OptionNoVerifyToken(),
+	)
 	if err != nil {
 		c.NoContent(http.StatusInternalServerError)
 		c.Logger().Errorf("#slack.ParseEventToken: %s", err.Error())
@@ -79,7 +88,13 @@ func handleRouteEvents(c echo.Context, slackClient *slack.Client, dbClient *gorm
 	return nil
 }
 
-func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *simba.Config, dbClient *gorm.DB, threadTS string) error {
+func handleRouteInteractive(
+	c echo.Context,
+	slackClient *slack.Client,
+	config *simba.Config,
+	dbClient *gorm.DB,
+	threadTS string,
+) error {
 	callBackStruct := new(slack.InteractionCallback)
 	err := json.Unmarshal([]byte(c.Request().FormValue("payload")), &callBackStruct)
 
@@ -126,7 +141,8 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 			log.Println("ActionBlock", action.ActionID, action.Value)
 			switch {
 			case strings.Contains(action.ActionID, "mood_feeling_select"):
-				c.Logger().Printf("Clicked on button for mood_feeling_select with value = %s", action.Value)
+				c.Logger().
+					Printf("Clicked on button for mood_feeling_select with value = %s", action.Value)
 
 				if simbaUser, _, err := simba.FechCurrent(dbClient, slackClient, userId); err != nil {
 					simba.SendErrorMessageToUser(slackClient, userId, err)
@@ -143,7 +159,15 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 
 				return nil
 			case strings.Contains(action.ActionID, "mood_user"):
-				dailyMood, err := simba.HandleAddDailyMood(dbClient, slackClient, channelId, userId, username, action.Value, threadTS)
+				dailyMood, err := simba.HandleAddDailyMood(
+					dbClient,
+					slackClient,
+					channelId,
+					userId,
+					username,
+					action.Value,
+					threadTS,
+				)
 				if err != nil {
 					c.Error(err)
 					simba.SendErrorMessageToUser(slackClient, userId, err)
@@ -163,17 +187,25 @@ func handleRouteInteractive(c echo.Context, slackClient *slack.Client, config *s
 				}
 				config.SLACK_MESSAGE_CHANNEL <- threadTS
 
-			case strings.Contains(action.ActionID, "send_kind_message"):
-				go handleSendKindMessage(slackClient, userId, action)
 			case strings.Contains(action.ActionID, "channel_selected"):
 				c.Logger().Printf("Enter channelSelected => %s", action.SelectedChannel)
 				_, users, err := simba.FetchUsersFromChannel(slackClient, action.SelectedChannel)
-
 				if err != nil {
 					c.Logger().Error(err)
 					return err
 				}
-				viewResponse, err := slackClient.PublishView(userId, handleAppHomeViewUpdated(slackClient, dbClient, config, userId, action.SelectedChannel, users), "")
+				viewResponse, err := slackClient.PublishView(
+					userId,
+					handleAppHomeViewUpdated(
+						slackClient,
+						dbClient,
+						config,
+						userId,
+						action.SelectedChannel,
+						users,
+					),
+					"",
+				)
 				if err != nil {
 					c.Logger().Error(err)
 					c.Logger().Error(viewResponse.Err())

@@ -11,7 +11,6 @@ func TestInitConfigChannelIdIsMissing(t *testing.T) {
 	_, err := simba.InitConfig(true)
 	if err == nil || err.Error() != "CHANNEL_ID is not set" {
 		t.Fatalf("got: %s,wanted : CHANNEL_ID is not set", err.Error())
-
 	}
 }
 
@@ -21,7 +20,6 @@ func TestInitConfigSlackApiTokenMissing(t *testing.T) {
 	_, err := simba.InitConfig(true)
 	if err == nil || err.Error() != "SLACK_API_TOKEN is not set" {
 		t.Fatalf("got: %s,wanted : SLACK_API_TOKEN is not set", err.Error())
-
 	}
 }
 
@@ -32,7 +30,6 @@ func TestInitConfigAppPortMissing(t *testing.T) {
 	_, err := simba.InitConfig(true)
 	if err == nil || err.Error() != "APP_PORT is not set" {
 		t.Fatalf("got: %s,wanted : APP_PORT is not set", err.Error())
-
 	}
 }
 
@@ -44,7 +41,6 @@ func TestInitConfigDbFailedUser(t *testing.T) {
 	_, err := simba.InitConfig(true)
 	if err == nil || err.Error() != "initDbConfig failed : DB_USER is not set" {
 		t.Fatalf("got: %s,wanted : initDbConfig failed : DB_USER is not set", err.Error())
-
 	}
 }
 
@@ -57,7 +53,6 @@ func TestInitDbConfigDbPasswordMissing(t *testing.T) {
 	_, err := simba.InitConfig(true)
 	if err == nil || err.Error() != "initDbConfig failed : DB_PASSWORD is not set" {
 		t.Fatalf("got: %s,wanted : initDbConfig failed : DB_PASSWORD is not set", err.Error())
-
 	}
 }
 
@@ -71,7 +66,6 @@ func TestInitDbConfigDbHostMissing(t *testing.T) {
 	_, err := simba.InitConfig(true)
 	if err == nil || err.Error() != "initDbConfig failed : DB_HOST is not set" {
 		t.Fatalf("got: %s,wanted : initDbConfig failed : DB_HOST is not set", err.Error())
-
 	}
 }
 
@@ -86,7 +80,6 @@ func TestInitDbConfigDbNameMissing(t *testing.T) {
 	_, err := simba.InitConfig(true)
 	if err == nil || err.Error() != "initDbConfig failed : DB_NAME is not set" {
 		t.Fatalf("got: %s,wanted : initDbConfig failed : DB_NAME is not set", err.Error())
-
 	}
 }
 

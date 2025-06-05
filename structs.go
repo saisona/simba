@@ -22,7 +22,7 @@ type GiphyResponse struct {
 type giphyResponseMeta struct {
 	Msg        string `json:"msg"`
 	Status     int    `json:"status"`
-	ResponseId string `json:"response_id"`
+	ResponseID string `json:"response_id"`
 }
 
 type giphyResponsePagination struct {

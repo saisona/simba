@@ -5,15 +5,15 @@ import (
 )
 
 type ErrMoodAlreadySet struct {
-	UserId string
+	UserID string
 }
 
 func (err *ErrMoodAlreadySet) Error() string {
-	return fmt.Sprintf("%s has already set DailyMood", err.UserId)
+	return fmt.Sprintf("%s has already set DailyMood", err.UserID)
 }
 
-func NewErrMoodAlreadySet(userId string) *ErrMoodAlreadySet {
-	return &ErrMoodAlreadySet{UserId: userId}
+func NewErrMoodAlreadySet(userID string) *ErrMoodAlreadySet {
+	return &ErrMoodAlreadySet{UserID: userID}
 }
 
 // ------------------------------//

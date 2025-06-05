@@ -1,6 +1,6 @@
 FROM golang:1.23-alpine AS build_base
 
-RUN apk add git
+RUN apk add build-base ca-certificates
 
 # Set the Current Working Directory inside the container
 WORKDIR /tmp/go-simba-app
@@ -14,13 +14,15 @@ RUN go mod download
 COPY cmd/*.go /tmp/go-simba-app/cmd/
 COPY *.go /tmp/go-simba-app/
 
-RUN go build -o ./out/app cmd/*.go
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-linkmode external -extldflags -static" -o ./out/app cmd/*.go
 
-# Start fresh from a smaller image
-FROM alpine:3
+# The scratch base image welcomes us as a blank canvas for our prod stage.
+FROM scratch
 
-RUN apk add ca-certificates
+WORKDIR /
 
+# We copy the passwd file, essential for our non-root user 
+COPY --from=build_base /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build_base /tmp/go-simba-app/out/app /app/app
 
 # Run the binary program produced by `go install`

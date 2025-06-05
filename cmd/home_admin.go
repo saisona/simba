@@ -67,7 +67,9 @@ func (hvai homeViewAdminInfo) avgTotal(m map[string]int) map[string]float64 {
 	return avg
 }
 
-func (hvai homeViewAdminInfo) avgByUser(avgUser map[string]map[string]int) map[string]map[string]float64 {
+func (hvai homeViewAdminInfo) avgByUser(
+	avgUser map[string]map[string]int,
+) map[string]map[string]float64 {
 	avg := make(map[string]map[string]float64)
 	for u, m := range avgUser {
 		avg[u] = make(map[string]float64)
@@ -93,11 +95,15 @@ func (hvi homeViewAdminInfo) mapByUserCount() map[string]map[string]int {
 	return moodCountMap
 }
 
-//@desc Render Home view admin or update depending on slackChannelId is given or not
-//@params user is a DB representation of a Simba user
-//@params [slackChannelId] is optionnal given if already known or not used for update
-//@returns Blocks to be send to update Simba Home view
-func handleAppHomeViewAdmin(user *simba.User, config *simba.Config, dbClient *gorm.DB) slack.Blocks {
+// @desc Render Home view admin or update depending on slackChannelId is given or not
+// @params user is a DB representation of a Simba user
+// @params [slackChannelId] is optionnal given if already known or not used for update
+// @returns Blocks to be send to update Simba Home view
+func handleAppHomeViewAdmin(
+	user *simba.User,
+	config *simba.Config,
+	dbClient *gorm.DB,
+) slack.Blocks {
 	basicText := slackTextBlock("Simba Application (Admin)")
 	slackHeaderBlock := slack.NewHeaderBlock(basicText)
 
@@ -112,7 +118,10 @@ func handleAppHomeViewAdmin(user *simba.User, config *simba.Config, dbClient *go
 	for u, a := range hvai.avgTotal(hvai.mapAllCount()) {
 		text := fmt.Sprintf("%s %.2f%%", simba.FromMoodToSmiley(u), a)
 		buttonBlock := slack.NewButtonBlockElement("_", "", slackTextBlock(text))
-		actionBlock := slack.NewActionBlock(fmt.Sprintf("total_%s_%d", u, time.Now().Unix()), buttonBlock)
+		actionBlock := slack.NewActionBlock(
+			fmt.Sprintf("total_%s_%d", u, time.Now().Unix()),
+			buttonBlock,
+		)
 		blockSet = append(blockSet, actionBlock)
 	}
 
@@ -122,10 +131,16 @@ func handleAppHomeViewAdmin(user *simba.User, config *simba.Config, dbClient *go
 		elemBlock := []slack.BlockElement{}
 		for k, v := range m {
 			text := fmt.Sprintf("%s %.2f%%", simba.FromMoodToSmiley(k), v)
-			buttonBlock := slack.NewButtonBlockElement(fmt.Sprintf("%s_%d", k, time.Now().Unix()), "", slackTextBlock(text))
+			buttonBlock := slack.NewButtonBlockElement(
+				fmt.Sprintf("%s_%d", k, time.Now().Unix()),
+				"",
+				slackTextBlock(text),
+			)
 			elemBlock = append(elemBlock, buttonBlock)
 		}
-		actionBlock := slack.NewActionBlock(fmt.Sprintf("action_block_user_%s_%d", u, time.Now().Unix()+1), elemBlock...)
+		actionBlock := slack.NewActionBlock(
+			fmt.Sprintf("action_block_user_%s_%d", u, time.Now().Unix()+1),
+			elemBlock...)
 		blockSet = append(blockSet, actionBlock, slack.NewDividerBlock())
 	}
 

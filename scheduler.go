@@ -23,12 +23,17 @@ func funcHandler(dbClient *gorm.DB, client *slack.Client, config *Config, thread
 		log.Printf("#SendSlackBlocks error => %s", err)
 		return err
 	}
-	//Sending threadTS
+	// Sending threadTS
 	config.SLACK_MESSAGE_CHANNEL <- threadTs
 	return nil
 }
 
-func InitScheduler(dbClient *gorm.DB, client *slack.Client, config *Config, threadTS string) (*gocron.Scheduler, *gocron.Job, error) {
+func InitScheduler(
+	dbClient *gorm.DB,
+	client *slack.Client,
+	config *Config,
+	threadTS string,
+) (*gocron.Scheduler, *gocron.Job, error) {
 	scheduler := gocron.NewScheduler(time.Local)
 	if os.Getenv("APP_ENV") == "production" {
 		scheduler.CronWithSeconds(config.CRON_EXPRESSION)

@@ -27,7 +27,10 @@ func main() {
 
 	var threadTS string
 
-	slackSigningSecret, config, dbClient, slackClient, scheduler, err := initApplication(e, threadTS)
+	slackSigningSecret, config, dbClient, slackClient, scheduler, err := initApplication(
+		e,
+		threadTS,
+	)
 	if err != nil {
 		e.Logger.Fatal("initApplication failed :", err.Error())
 		return

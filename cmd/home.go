@@ -29,7 +29,7 @@ func findWorseMoodyPerson(dbClient *gorm.DB) (*simba.User, error) {
 	if tx := dbClient.Debug().Find(&moodyUser); tx.Error != nil {
 		return nil, tx.Error
 	} else {
-		//TODO: handle return the right person
+		// TODO: handle return the right person
 		return moodyUser, nil
 	}
 }
@@ -68,8 +68,12 @@ func (hvi homeViewInfo) mapCount() map[string]int {
 // @params user is a DB representation of a Simba user
 // @params [slackChannelId] is optionnal given if already known or not used for update
 // @returns Blocks to be send to update Simba Home view
-func handleAppHomeViewNotAdmin(user *simba.User, config *simba.Config, dbClient *gorm.DB) slack.Blocks {
-	//Header
+func handleAppHomeViewNotAdmin(
+	user *simba.User,
+	config *simba.Config,
+	dbClient *gorm.DB,
+) slack.Blocks {
+	// Header
 	basicText := slackTextBlock("Simba Application (Not Admin)")
 	hvi, err := NewHomeViewInfo(dbClient, user.SlackUserID, fmt.Sprint(user.ID))
 	if err != nil {
@@ -77,20 +81,34 @@ func handleAppHomeViewNotAdmin(user *simba.User, config *simba.Config, dbClient 
 	}
 	slackHeaderBlock := slack.NewHeaderBlock(basicText)
 
-	slackTitleInfo := slackTextBlock("Week informations about you")
 	buttonBlockSet := []slack.BlockElement{}
 	for mood, k := range hvi.avgTotal(hvi.mapCount()) {
 		txtSlackStr := fmt.Sprintf("%s %.2f", simba.FromMoodToSmiley(mood), k)
-		buttonBlock := slack.NewButtonBlockElement(fmt.Sprintf("personnal_%s_%d", mood, time.Now().Unix()), "send_kind_message", slackTextBlock(txtSlackStr))
+		buttonBlock := slack.NewButtonBlockElement(
+			fmt.Sprintf("personnal_%s_%d", mood, time.Now().Unix()),
+			"send_kind_message",
+			slackTextBlock(txtSlackStr),
+		)
 		buttonBlockSet = append(buttonBlockSet, buttonBlock)
 	}
-	actionBlock := slack.NewActionBlock(fmt.Sprintf("action_moods_block_%d", time.Now().Unix()), buttonBlockSet...)
+	actionBlock := slack.NewActionBlock(
+		fmt.Sprintf("action_moods_block_%d", time.Now().Unix()),
+		buttonBlockSet...)
 	return slack.Blocks{
-		BlockSet: []slack.Block{slackHeaderBlock, slack.NewDividerBlock(), slackTitleInfo, actionBlock},
+		BlockSet: []slack.Block{
+			slackHeaderBlock,
+			slack.NewDividerBlock(),
+			actionBlock,
+		},
 	}
 }
 
-func handleAppHomeView(slackClient *slack.Client, dbClient *gorm.DB, config *simba.Config, userId string) slack.HomeTabViewRequest {
+func handleAppHomeView(
+	slackClient *slack.Client,
+	dbClient *gorm.DB,
+	config *simba.Config,
+	userId string,
+) slack.HomeTabViewRequest {
 	callbackId := fmt.Sprintf("app_home_callback_%d", time.Now().UnixMilli())
 	externalId := fmt.Sprintf("app_home_external_%d", time.Now().UnixMilli())
 	user, slackUser, err := simba.FechCurrent(dbClient, slackClient, userId)
@@ -114,7 +132,14 @@ func handleAppHomeView(slackClient *slack.Client, dbClient *gorm.DB, config *sim
 	return slackModalViewRequest
 }
 
-func handleAppHomeViewUpdated(slackClient *slack.Client, dbClient *gorm.DB, config *simba.Config, userId string, channelId string, channelUsers []*slack.User) slack.HomeTabViewRequest {
+func handleAppHomeViewUpdated(
+	slackClient *slack.Client,
+	dbClient *gorm.DB,
+	config *simba.Config,
+	userId string,
+	channelId string,
+	channelUsers []*slack.User,
+) slack.HomeTabViewRequest {
 	callbackId := fmt.Sprintf("app_home_callback_%d", time.Now().UnixMilli())
 	externalId := fmt.Sprintf("app_home_external_%d", time.Now().UnixMilli())
 	user, _, err := simba.FechCurrent(dbClient, slackClient, userId)
@@ -125,7 +150,9 @@ func handleAppHomeViewUpdated(slackClient *slack.Client, dbClient *gorm.DB, conf
 	var blocks slack.Blocks = handleAppHomeViewAdmin(user, config, dbClient)
 
 	for _, user := range channelUsers {
-		userProfile, err := slackClient.GetUserProfile(&slack.GetUserProfileParameters{UserID: userId})
+		userProfile, err := slackClient.GetUserProfile(
+			&slack.GetUserProfileParameters{UserID: userId},
+		)
 		if err != nil {
 			log.Printf("Cannot fetch UserProfile : %s", err.Error())
 			return slack.HomeTabViewRequest{
@@ -136,7 +163,13 @@ func handleAppHomeViewUpdated(slackClient *slack.Client, dbClient *gorm.DB, conf
 			}
 		}
 		userListName := slackMkDownBlock(fmt.Sprintf("*%s*", userProfile.DisplayName))
-		msgAction := slack.NewAccessory(slack.NewButtonBlockElement(fmt.Sprintf("direct_message_%s", user.ID), user.ID, slackTextBlock("Send IM")))
+		msgAction := slack.NewAccessory(
+			slack.NewButtonBlockElement(
+				fmt.Sprintf("direct_message_%s", user.ID),
+				user.ID,
+				slackTextBlock("Send IM"),
+			),
+		)
 		userListItem := slack.NewSectionBlock(userListName, nil, msgAction)
 		blocks.BlockSet = append(blocks.BlockSet, userListItem)
 	}
