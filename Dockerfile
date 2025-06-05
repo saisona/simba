@@ -1,7 +1,7 @@
 # Build stage
 FROM golang:1.23-alpine AS build
 
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates tzdata
 
 WORKDIR /app
 
@@ -24,5 +24,6 @@ WORKDIR /app
 
 COPY --from=build /app/simba /app/simba
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=build /user/share/zoneinfo/Europe/Paris /etc/localtime
 
 ENTRYPOINT ["/app/simba"]
