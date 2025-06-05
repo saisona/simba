@@ -45,9 +45,16 @@ serviceAccount:
 
 podAnnotations: {}
 
-podSecurityContext: {}   
+podSecurityContext: {}
 
-securityContext: {}   
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001 # Use the UID from your Dockerfile
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
 
 service:
   type: ClusterIP
