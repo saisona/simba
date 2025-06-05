@@ -1,30 +1,28 @@
-FROM golang:1.23-alpine AS build_base
+# Build stage
+FROM golang:1.23-alpine AS build
 
-RUN apk add build-base ca-certificates
+RUN apk add --no-cache ca-certificates
 
-# Set the Current Working Directory inside the container
-WORKDIR /tmp/go-simba-app
+WORKDIR /app
 
-# We want to populate the module cache based on the go.{mod,sum} files.
 COPY go.mod .
 COPY go.sum .
-
 RUN go mod download
 
-COPY cmd/*.go /tmp/go-simba-app/cmd/
-COPY *.go /tmp/go-simba-app/
+COPY cmd/*.go ./cmd/
+COPY *.go ./
 
-RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-linkmode external -extldflags -static" -o ./out/app cmd/*.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o simba ./cmd
 
-# The scratch base image welcomes us as a blank canvas for our prod stage.
-FROM scratch
+# Production stage: distroless
+FROM gcr.io/distroless/base-debian12
 
-WORKDIR /
+# Optional: non-root user (UID 10001 is standard for distroless)
+USER 10001:0
 
-# We copy the passwd file, essential for our non-root user 
-COPY --from=build_base /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=build_base /tmp/go-simba-app/out/app /app/app
+WORKDIR /app
 
-# Run the binary program produced by `go install`
-ENTRYPOINT ["/app/app"]
+COPY --from=build /app/simba /app/simba
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
+ENTRYPOINT ["/app/simba"]
